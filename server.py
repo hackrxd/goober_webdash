@@ -62,10 +62,48 @@ def get_name():
 def add_disk():
     data = flask.request.get_json()
     disk_name = data.get('name', 'Unnamed Disk')
+    color = data.get('color', '#4ade80')
     disk_identifier = data.get('disk')
-    config['disks'][disk_identifier] = disk_name
+    if not disk_identifier:
+        return flask.jsonify({"error": "missing disk identifier"}), 400
+    # Store disk as object with name and color for future extensibility
+    config.setdefault('disks', {})
+    config['disks'][disk_identifier] = {"name": disk_name, "color": color}
     save_config()
     return '', 204
+
+@app.route('/system/usage/disks', methods=['GET'])
+def usage_disks():
+    disks = []
+    for disk, v in config.get('disks', {}).items():
+        # v can be a string (legacy) or an object with name/color
+        if isinstance(v, dict):
+            name = v.get('name', disk)
+            color = v.get('color', '#4ade80')
+        else:
+            name = v
+            color = '#4ade80'
+
+        try:
+            usage = psutil.disk_usage(disk)
+        except Exception:
+            # Skip disks we can't stat (invalid mount points, etc.)
+            continue
+
+        total_mb = usage.total // (1024**2)
+        used_mb = usage.used // (1024**2)
+        free_mb = total_mb - used_mb
+        disks.append({
+            "identifier": disk,
+            "name": name,
+            "color": color,
+            "size": total_mb,
+            "used": used_mb,
+            "free": free_mb,
+            "percent": usage.percent
+        })
+
+    return flask.jsonify(disks)
 
 @app.route('/system/usage', methods=["GET"])
 def log_usage():

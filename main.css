@@ -27,6 +27,16 @@ header { display:flex; justify-content:center }
     padding: 20px;
 }
 
+/* Layout for the disks container so individual disk cards flow like other cards */
+.disks-container {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+}
+
 .card {
     width: 320px;
     background-color: var(--card-bg);

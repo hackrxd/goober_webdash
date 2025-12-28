@@ -25,13 +25,16 @@ function pauseButton() {
 function addDisk() {
     const diskName = prompt("Enter the name of the new disk:");
     const disk = prompt("Enter the disk identifier (e.g., /dev/sda):");
+    // TODO show a color wheel dialog for color selection
+    const color = prompt("Enter a color for the disk (e.g., #4ade80):");
     if (diskName) {
         fetch('/system/disks/add', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ name: diskName, disk: disk })
+            body: JSON.stringify({ name: diskName, disk: disk, color: color })
         })
     }
+    location.reload();
 }

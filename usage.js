@@ -1,4 +1,15 @@
 let cpuChart, ramChart, diskChart;
+// shared map of disk safeId -> Chart instance (may be created by initDisks.js)
+let diskCharts = window.diskCharts = window.diskCharts || {};
+
+// format sizes: show MB, or GB when >= 1024 MB
+function formatSize(mb) {
+    if (typeof mb !== 'number') mb = Number(mb) || 0;
+    if (mb >= 1024) {
+        return (mb / 1024).toFixed(2) + ' GB';
+    }
+    return mb + ' MB';
+}
 
 function setAllZero() {
     cpuChart.data.datasets[0].data = [0, 100];
@@ -66,13 +77,13 @@ function initCharts() {
 
     // Disk Chart
     const diskCtx = document.getElementById('diskChart').getContext('2d');
-    diskChart = new Chart(diskCtx, {
+        diskChart = new Chart(diskCtx, {
         type: 'doughnut',
         data: {
             labels: ['Used', 'Available'],
             datasets: [{
-                data: [0, 100],
-                backgroundColor: ['#f59e0b', '#374151'],
+                    data: [0, 100],
+                    backgroundColor: ['#4ade80', '#374151'],
                 borderColor: 'rgb(28, 28, 28)',
                 borderWidth: 2
             }]
@@ -103,23 +114,93 @@ function fetchUsage() {
             ramChart.data.datasets[0].data = [ramPercent, 100 - ramPercent];
             ramChart.update();
 
-            // Update Disk
+            // Update Disk (global)
             const diskPercent = data.disk_percent;
             const diskUsed = data.disk_used;
             const diskTotal = data.disk_total;
-            if (diskUsed < 1024) {
-                document.getElementById('diskUsage').innerHTML = `${diskUsed} MB / ${diskTotal} MB`;
-            }
-            else {
-                const diskUsedGB = (diskUsed / 1024).toFixed(2);
-                const diskTotalGB = (diskTotal / 1024).toFixed(2);
-                document.getElementById('diskUsage').innerHTML = `${diskUsedGB} GB / ${diskTotalGB} GB`;
-            }
+            document.getElementById('diskUsage').innerHTML = `${formatSize(diskUsed)} / ${formatSize(diskTotal)}`;
             document.getElementById('disk').innerHTML = `${diskPercent}%`;
             diskChart.data.datasets[0].data = [diskPercent, 100 - diskPercent];
             diskChart.update();
         })
         .catch(error => setAllZero());
+}
+
+// Fetch per-disk usage and update/create disk cards in the disks container
+function fetchDisks() {
+    const container = document.getElementById('disks-container');
+    if (!container) return;
+
+    fetch('/system/usage/disks', { cache: 'no-store' })
+        .then(response => response.json())
+        .then(data => {
+            const disks = data || [];
+
+            // Update only: expect cards (and canvases) to be created by initDisks.js.
+            disks.forEach(disk => {
+                const safeId = 'disk-' + encodeURIComponent(disk.identifier).replace(/%/g, '');
+                const chartId = safeId + '-chart';
+                const card = document.getElementById(safeId);
+                if (!card) return; // card not created yet
+
+                // update DOM values
+                const nameEl = card.querySelector('.disk-name');
+                if (nameEl) nameEl.textContent = disk.name;
+                const percentEl = card.querySelector('.disk-percent');
+                if (percentEl) {
+                    percentEl.textContent = disk.percent + '%';
+                    percentEl.style.color = disk.color || '#4ade80';
+                }
+                const usageEl = card.querySelector('.disk-usage');
+                if (usageEl) usageEl.textContent = `${formatSize(disk.used)} / ${formatSize(disk.size)}`;
+                const idEl = card.querySelector('.disk-identifier');
+                if (idEl) idEl.textContent = disk.identifier;
+
+                // update or initialize chart
+                let chart = diskCharts[safeId];
+                if (!chart) {
+                    const canvas = document.getElementById(chartId);
+                    if (canvas) {
+                        try {
+                            const ctx = canvas.getContext('2d');
+                            chart = new Chart(ctx, {
+                                type: 'doughnut',
+                                data: {
+                                    labels: ['Used', 'Available'],
+                                    datasets: [{
+                                        data: [disk.percent, Math.max(0, 100 - disk.percent)],
+                                        backgroundColor: [disk.color || '#4ade80', '#374151'],
+                                        borderColor: 'rgb(28, 28, 28)',
+                                        borderWidth: 2
+                                    }]
+                                },
+                                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } } }
+                            });
+                            diskCharts[safeId] = chart;
+                        } catch (e) {}
+                    }
+                } else {
+                    chart.data.datasets[0].data = [disk.percent, Math.max(0, 100 - disk.percent)];
+                    chart.update();
+                }
+            });
+
+            // Remove cards for disks that no longer exist
+            const existing = Array.from(container.querySelectorAll('.disk-card'));
+            existing.forEach(c => {
+                const stillExists = disks.some(d => ('disk-' + encodeURIComponent(d.identifier).replace(/%/g, '')) === c.id);
+                if (!stillExists) {
+                    // destroy chart if present
+                    try {
+                        const ch = diskCharts[c.id];
+                        if (ch && typeof ch.destroy === 'function') ch.destroy();
+                    } catch (e) {}
+                    delete diskCharts[c.id];
+                    c.remove();
+                }
+            });
+        })
+        .catch(() => {});
 }
 let paused = false;
 
@@ -139,5 +220,7 @@ function pauseUpdates() {
 window.addEventListener('DOMContentLoaded', function() {
     initCharts();
     fetchUsage();
+    fetchDisks();
     setInterval(fetchUsage, 2000);
+    setInterval(fetchDisks, 2000);
 });
