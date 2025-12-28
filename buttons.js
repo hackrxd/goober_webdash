@@ -21,3 +21,17 @@ function rename() {
 function pauseButton() {
     pauseUpdates()
 }
+
+function addDisk() {
+    const diskName = prompt("Enter the name of the new disk:");
+    const disk = prompt("Enter the disk identifier (e.g., /dev/sda):");
+    if (diskName) {
+        fetch('/system/disks/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: diskName, disk: disk })
+        })
+    }
+}

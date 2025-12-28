@@ -2,9 +2,19 @@ import psutil
 import flask
 import os
 import numpy
+import json
 from datetime import datetime
 
 app = flask.Flask(__name__, template_folder='errors')
+
+config = {
+    "name": "much wow, very dash",
+    "disks": {"/": "Main Disk"}
+} if not os.path.exists('config.json') else json.load(open('config.json'))
+
+def save_config():
+    with open('config.json', 'w') as f:
+        json.dump(config, f, indent=4)
 
 @app.errorhandler(403)
 def forbiddon(e):
@@ -40,17 +50,22 @@ def system():
 @app.route('/system/rename', methods=['POST'])
 def rename():
     data = flask.request.get_json()
-    with open('name.txt', 'w') as f:
-        f.write(data.get('name', 'Unnamed Device'))
+    config['name'] = data.get('name', 'Unnamed Device')
+    save_config()
 
 @app.route('/system/name', methods=['GET'])
 def get_name():
-    if os.path.exists('name.txt'):
-        with open('name.txt', 'r') as f:
-            name = f.read()
-    else:
-        name = 'Unnamed Device'
+    name = config.get('name', 'much wow, very dash')
     return flask.jsonify({"name": name})
+
+@app.route('/system/disks/add', methods=['POST'])
+def add_disk():
+    data = flask.request.get_json()
+    disk_name = data.get('name', 'Unnamed Disk')
+    disk_identifier = data.get('disk')
+    config['disks'][disk_identifier] = disk_name
+    save_config()
+    return '', 204
 
 @app.route('/system/usage', methods=["GET"])
 def log_usage():
@@ -77,6 +92,8 @@ def log_usage():
     return flask.jsonify(returnList)
 
 
-
-if __name__ == "__main__":
-    app.run('0.0.0.0', 80, debug=True)
+try:
+    if __name__ == "__main__":
+        app.run('0.0.0.0', 80, debug=True)
+except KeyboardInterrupt as e:
+    save_config()
