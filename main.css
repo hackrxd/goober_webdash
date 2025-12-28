@@ -94,6 +94,14 @@ button {
     background-color: #4aaef5;
 }
 
+.pauseButton {
+    background-color: #f1a10cff;
+}
+
+.pauseButton:hover {
+    background-color: #e07e0bff;
+}
+
 div.error {
     position: fixed;
     top: 0;

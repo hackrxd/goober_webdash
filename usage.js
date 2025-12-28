@@ -31,7 +31,7 @@ function initCharts() {
             }
         }
     };
-
+    
     // CPU Chart
     const cpuCtx = document.getElementById('cpuChart').getContext('2d');
     cpuChart = new Chart(cpuCtx, {
@@ -82,6 +82,9 @@ function initCharts() {
 }
 
 function fetchUsage() {
+    if (paused) {
+        return;
+    }
     fetch('/system/usage')
         .then(response => response.json())
         .then(data => {
@@ -117,6 +120,19 @@ function fetchUsage() {
             diskChart.update();
         })
         .catch(error => setAllZero());
+}
+let paused = false;
+
+function pauseUpdates() {
+    paused = !paused;
+    const pauseButton = document.getElementsByClassName('pauseButton')[0];
+    if (paused) {
+        pauseButton.textContent = "Resume";
+        pauseButton.style.backgroundColor = "#10b981";
+    } else {
+        pauseButton.textContent = "Pause";
+        pauseButton.style.backgroundColor = "#f1a10cff";
+    }
 }
 
 // Initialize charts when page loads

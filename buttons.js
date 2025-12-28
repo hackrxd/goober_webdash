@@ -17,3 +17,7 @@ function rename() {
         })
     }
 }
+
+function pauseButton() {
+    pauseUpdates()
+}

@@ -10,7 +10,7 @@
                 }catch(e){/* ignore */}
             })();
         </script>
-        <title>Usage - Goober's Homelab</title>
+        <title id="title">Usage</title>
         <link href="/main.css" rel="stylesheet">
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,6 +50,7 @@
                 <h2 id="system-title">System</h2>
                 <button class="restartButton" onclick="reboot()">Reboot</button>
                 <button class="renameButton" onclick="rename()">Rename</button>
+                <button class="pauseButton" onclick="pauseButton()" id="pauseButton">Pause</button>
             </section>
         </main>
         <script src="/loadname.js"></script>
