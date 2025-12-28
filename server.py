@@ -36,6 +36,21 @@ def reboot():
 def system():
     return flask.abort(403)
 
+@app.route('/system/rename', methods=['POST'])
+def rename():
+    data = flask.request.get_json()
+    with open('name.txt', 'w') as f:
+        f.write(data.get('name', 'Unnamed Device'))
+
+@app.route('/system/name', methods=['GET'])
+def get_name():
+    if os.path.exists('name.txt'):
+        with open('name.txt', 'r') as f:
+            name = f.read()
+    else:
+        name = 'Unnamed Device'
+    return flask.jsonify({"name": name})
+
 @app.route('/system/usage', methods=["GET"])
 def log_usage():
     ram = psutil.virtual_memory()

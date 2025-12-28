@@ -1,5 +1,19 @@
 let cpuChart, ramChart, diskChart;
 
+function setAllZero() {
+    cpuChart.data.datasets[0].data = [0, 100];
+    cpuChart.update();
+    ramChart.data.datasets[0].data = [0, 100];
+    ramChart.update();
+    diskChart.data.datasets[0].data = [0, 100];
+    diskChart.update();
+    document.getElementById('cpu').innerHTML = `0%`;
+    document.getElementById('ram').innerHTML = `0%`;
+    document.getElementById('ramUsage').innerHTML = `0 MB / 0 MB`;
+    document.getElementById('disk').innerHTML = `0%`;
+    document.getElementById('diskUsage').innerHTML = `0 MB / 0 MB`;
+}
+
 function initCharts() {
     const chartOptions = {
         responsive: true,
@@ -102,7 +116,7 @@ function fetchUsage() {
             diskChart.data.datasets[0].data = [diskPercent, 100 - diskPercent];
             diskChart.update();
         })
-        .catch(error => console.error('Error fetching usage:', error));
+        .catch(error => setAllZero());
 }
 
 // Initialize charts when page loads
