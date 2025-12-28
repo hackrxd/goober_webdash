@@ -1,6 +1,7 @@
 import psutil
 import flask
 import os
+import numpy
 from datetime import datetime
 
 app = flask.Flask(__name__, template_folder='errors')
