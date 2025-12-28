@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script>
+            (function(){
+                try{
+                    var isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/.test(navigator.userAgent) || (screen.width && screen.width < 720);
+                    if(isMobile) document.documentElement.classList.add('is-mobile');
+                }catch(e){/* ignore */}
+            })();
+        </script>
+        <title>Usage - Goober's Homelab</title>
+        <link href="/main.css" rel="stylesheet">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <div class="error" id="error"></div>
+        <header>
+            <h1 id="name">homelab name</h1>
+        </header>
+        <main class="container" role="main">
+            <section class="card" aria-labelledby="cpu-title">
+                <h2 id="cpu-title">CPU</h2>
+                <div class="chart-container">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+                <p id="cpu" class="metric-value">Loading...</p>
+            </section>
+            <section class="card" aria-labelledby="ram-title">
+                <h2 id="ram-title">RAM</h2>
+                <div class="chart-container">
+                    <canvas id="ramChart"></canvas>
+                </div>
+                <p id="ram" class="metric-value">Loading...</p>
+                <p id="ramUsage" class="metric-value"></p>
+            </section>
+            <section class="card" aria-labelledby="disk-title">
+                <h2 id="disk-title">Disk</h2>
+                <div class="chart-container">
+                    <canvas id="diskChart"></canvas>
+                </div>
+                <p id="disk" class="metric-value">Loading...</p>
+                <p id="diskUsage" class="metric-value"></p>
+            </section>
+            <section class="card" aria-labelledby="system-title">
+                <h2 id="system-title">System</h2>
+                <button class="restartButton" onclick="reboot()">Reboot</button>
+            </section>
+        </main>
+        <script src="/loadname.js"></script>
+        <script src="/usage.js"></script>
+        <script src="/buttons.js"></script>
+        <script src="/error.js"></script>
+    </body>
+</html>

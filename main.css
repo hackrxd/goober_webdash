@@ -1,0 +1,125 @@
+:root {
+    --bg: #141414;
+    --card-bg: #1c1c1c;
+    --accent: #4ade80;
+    --muted: #9ca3af;
+}
+
+* { box-sizing: border-box }
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg);
+    color: #fff;
+    font-family: 'Montserrat', sans-serif;
+}
+
+header { display:flex; justify-content:center }
+
+/* Desktop-first base styles */
+.container {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    margin-top: 50px;
+    flex-wrap: wrap;
+    padding: 20px;
+}
+
+.card {
+    width: 320px;
+    background-color: var(--card-bg);
+    border-radius: 15px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+h1 {
+    text-align: center;
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+    margin-top: 40px;
+    margin-bottom: 20px;
+    font-size: 45px;
+}
+
+h2 {
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+    text-align: center;
+    font-size: 28px;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.metric-value {
+    color: var(--accent);
+    font-family: 'Montserrat', sans-serif;
+    text-align: center;
+    font-size: 18px;
+    margin-top: 10px;
+}
+
+.chart-container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+}
+
+.chart-container canvas { width: 100% !important; height: 100% !important }
+
+button {
+    background-color: var(--accent);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 20px auto;
+    cursor: pointer;
+    border-radius: 5px;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.restartButton {
+    background-color: #71c7f8;
+}
+
+.restartButton:hover {
+    background-color: #4aaef5;
+}
+
+div.error {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: #b91c1c;
+    color: white;
+    text-align: center;
+    padding: 10px 0;
+    font-family: 'Montserrat', sans-serif;
+    z-index: 1000;
+    display: none; /* Hidden by default */
+}
+
+/* Mobile overrides: only applied when .is-mobile class is present OR viewport is small */
+@media (max-width:719px) {
+    .container { flex-direction: column; gap: 16px; margin-top: 12px; padding: 12px }
+    .card { width: 100%; max-width: 420px; padding: 14px; border-radius: 12px }
+    .chart-container { width: 80%; max-width: 260px; height: auto; aspect-ratio: 1/1 }
+    h1 { font-size: 28px; margin: 18px 0 8px }
+    h2 { font-size: 18px }
+    .metric-value { font-size: 16px }
+    button { width: 100%; max-width: 220px }
+}
+
+/* Also allow JS-driven mobile class for server-side UA detection */
+.is-mobile .container { flex-direction: column; gap: 16px }
+.is-mobile .card { width: 100%; max-width: 420px }
+.is-mobile h1 { font-size: 28px }
