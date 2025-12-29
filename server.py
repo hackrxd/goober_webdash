@@ -352,7 +352,7 @@ def background_logger():
                 "ram_percent": round(ram.percent, 2),
                 "disk_used": diskused,
                 "disk_total": disktotal,
-                "disk_percent": round(disk.percent, 2),
+                "disk_percent": 100, # round(disk.percent, 2),
                 "battery_percent": round(battery.percent, 2) if battery is not None else None
             }
             
