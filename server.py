@@ -67,11 +67,38 @@ def check_updates():
         # Fetch updates from remote
         fetch_output, fetch_code, fetch_err = run_command("git fetch origin main")
         if fetch_code != 0:
-            error_msg = f"Git fetch failed: {fetch_err or 'unknown error'}"
-            update_status["last_check_error"] = error_msg
-            update_status["failed_checks"] += 1
-            log_update(f"ERROR: {error_msg}")
-            return False
+            # Handle Git's 'detected dubious ownership' by adding safe.directory and retrying
+            fetch_err_lower = (fetch_err or "").lower()
+            if "detected dubious ownership" in fetch_err_lower or "dubious ownership" in fetch_err_lower:
+                suggested_cmd = f"git config --global --add safe.directory {os.getcwd()}"
+                log_update(f"WARNING: Detected dubious ownership. Attempting to add safe.directory: {os.getcwd()}")
+                # Try to add safe.directory automatically
+                cfg_out, cfg_code, cfg_err = run_command(suggested_cmd)
+                if cfg_code == 0:
+                    log_update("INFO: Added safe.directory successfully, retrying git fetch")
+                    fetch_output, fetch_code, fetch_err = run_command("git fetch origin main")
+                    if fetch_code != 0:
+                        error_msg = f"Git fetch failed after adding safe.directory: {fetch_err or 'unknown error'}"
+                        update_status["last_check_error"] = error_msg
+                        update_status["failed_checks"] += 1
+                        log_update(f"ERROR: {error_msg}")
+                        return False
+                else:
+                    # Failed to add safe.directory; include suggestion in error
+                    error_msg = (
+                        f"Git fetch failed: {fetch_err or 'unknown error'}. "
+                        f"To fix, run: {suggested_cmd}"
+                    )
+                    update_status["last_check_error"] = error_msg
+                    update_status["failed_checks"] += 1
+                    log_update(f"ERROR: {error_msg}")
+                    return False
+            else:
+                error_msg = f"Git fetch failed: {fetch_err or 'unknown error'}"
+                update_status["last_check_error"] = error_msg
+                update_status["failed_checks"] += 1
+                log_update(f"ERROR: {error_msg}")
+                return False
         
         # Get local and remote commits
         local_output, local_code, _ = run_command("git rev-parse HEAD")
