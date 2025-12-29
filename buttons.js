@@ -52,6 +52,10 @@ function downloadLog() {
   location.href = '/log/download';
 }
 
+function downloadLog() {
+  location.href = '/update.log';
+}
+
 function switchToGraph() {
     window.open('/graphview', '_blank');
 }

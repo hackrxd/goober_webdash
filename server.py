@@ -30,6 +30,16 @@ update_status = {
     "failed_checks": 0
 }
 
+def log_update(message):
+    """Log update messages to update.log with timestamp"""
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = f"[{timestamp}] {message}\n"
+        with open('update.log', 'a') as f:
+            f.write(log_entry)
+    except Exception as e:
+        print(f"Error writing to update.log: {e}")
+
 def run_command(cmd):
     """Run a command and return output, handling both Windows and Unix"""
     try:
@@ -51,13 +61,16 @@ def check_updates():
         if code != 0:
             update_status["last_check_error"] = "Git not installed or not in PATH"
             update_status["failed_checks"] += 1
+            log_update("ERROR: Git not installed or not in PATH")
             return False
         
         # Fetch updates from remote
         fetch_output, fetch_code, fetch_err = run_command("git fetch origin main")
         if fetch_code != 0:
-            update_status["last_check_error"] = f"Git fetch failed: {fetch_err or 'unknown error'}"
+            error_msg = f"Git fetch failed: {fetch_err or 'unknown error'}"
+            update_status["last_check_error"] = error_msg
             update_status["failed_checks"] += 1
+            log_update(f"ERROR: {error_msg}")
             return False
         
         # Get local and remote commits
@@ -67,6 +80,7 @@ def check_updates():
         if local_code != 0 or remote_code != 0:
             update_status["last_check_error"] = "Could not get commit hashes"
             update_status["failed_checks"] += 1
+            log_update("ERROR: Could not get commit hashes")
             return False
         
         local_commit = local_output[:7]
@@ -79,16 +93,21 @@ def check_updates():
         
         if local_output != remote_output:
             update_status["update_available"] = True
-            print(f"[UPDATE CHECK] Update available: {local_commit} -> {remote_commit}")
+            msg = f"Update available: {local_commit} -> {remote_commit}"
+            log_update(msg)
+            print(f"[UPDATE CHECK] {msg}")
             return True
         else:
             update_status["update_available"] = False
-            print(f"[UPDATE CHECK] System is up to date ({local_commit})")
+            msg = f"System is up to date ({local_commit})"
+            log_update(msg)
+            print(f"[UPDATE CHECK] {msg}")
             return False
             
     except Exception as e:
         update_status["last_check_error"] = str(e)
         update_status["failed_checks"] += 1
+        log_update(f"ERROR: {str(e)}")
         print(f"[UPDATE CHECK] Error checking for updates: {e}")
         return False
 
@@ -97,25 +116,34 @@ def apply_update():
     global update_status
     
     if update_status["is_updating"]:
-        print("[UPDATE] Update already in progress")
+        msg = "Update already in progress"
+        log_update(f"WARNING: {msg}")
+        print(f"[UPDATE] {msg}")
         return False
     
     if not update_status["update_available"]:
-        print("[UPDATE] No update available")
+        msg = "No update available"
+        log_update(f"WARNING: {msg}")
+        print(f"[UPDATE] {msg}")
         return False
     
     try:
         update_status["is_updating"] = True
+        log_update("Starting update...")
         print("[UPDATE] Starting update...")
         
         # Pull latest changes
         pull_output, pull_code, pull_err = run_command("git pull origin main")
         if pull_code != 0:
             update_status["is_updating"] = False
-            update_status["last_check_error"] = f"Git pull failed: {pull_err}"
-            print(f"[UPDATE] Failed to pull changes: {pull_err}")
+            error_msg = f"Git pull failed: {pull_err}"
+            update_status["last_check_error"] = error_msg
+            log_update(f"ERROR: {error_msg}")
+            print(f"[UPDATE] {error_msg}")
             return False
         
+        log_update("Changes pulled successfully")
+        log_update("Update applied. Restart recommended.")
         print("[UPDATE] Changes pulled successfully")
         print("[UPDATE] Update applied. Restart recommended.")
         update_status["update_available"] = False
@@ -124,7 +152,9 @@ def apply_update():
         
     except Exception as e:
         update_status["is_updating"] = False
-        update_status["last_check_error"] = str(e)
+        error_msg = str(e)
+        update_status["last_check_error"] = error_msg
+        log_update(f"ERROR: {error_msg}")
         print(f"[UPDATE] Error applying update: {e}")
         return False
 
