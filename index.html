@@ -22,6 +22,7 @@
         <header>
             <h1 id="name">homelab name</h1>
         </header>
+        <button onclick="switchToGraph()">Open Graphs</button>
         <main class="container" role="main">
             <section class="card" aria-labelledby="cpu-title">
                 <h2 id="cpu-title">CPU</h2>
@@ -53,6 +54,8 @@
                 <h2 id="system-title">Controls</h2>
                 <button class="restartButton" onclick="reboot()">Reboot</button>
                 <button class="renameButton" onclick="rename()">Rename</button>
+                <button class="configButton" onclick="config()">Change Configuration</button>
+                <button class="downloadLogButton" onclick="downloadLog()">Download Log</button>
                 <button class="pauseButton" onclick="pauseButton()" id="pauseButton">Pause</button>
                 <button class="addDiskButton" onclick="addDisk()">Add Disk</button>
             </section>

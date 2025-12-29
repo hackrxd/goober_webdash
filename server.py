@@ -4,12 +4,15 @@ import os
 import numpy
 import json
 from datetime import datetime
+import threading
+import time
 
 app = flask.Flask(__name__, template_folder='errors')
 
 config = {
-    "name": "much wow, very dash",
-    "disks": {"/": "Main Disk"}
+    "name": "New Dashboard",
+    "disks": {},
+    "logLines": 10000
 } if not os.path.exists('config.json') else json.load(open('config.json'))
 
 def save_config():
@@ -72,6 +75,31 @@ def add_disk():
     save_config()
     return '', 204
 
+@app.route('/system/disks/remove', methods=['POST'])
+def remove_disk():
+    data = flask.request.get_json()
+    disk_identifier = data.get('disk')
+    if not disk_identifier:
+        return flask.jsonify({"error": "missing disk identifier"}), 400
+    if 'disks' in config and disk_identifier in config['disks']:
+        del config['disks'][disk_identifier]
+        save_config()
+    return '', 204
+
+@app.route('/dashboard/create/disk', methods=['GET'])
+def create_disk():
+    return flask.send_file('createdisk.html')
+
+@app.route('/config/edit/', methods=['GET', 'POST'])
+def edit_config():
+    if flask.request.method == 'GET':
+        return flask.send_file('config.html')
+    data = flask.request.get_json()
+    config['logLines'] = data.get('logLines', 10000)
+    config['name'] = data.get('name', config['name'])
+    save_config()
+    return '', 200
+
 @app.route('/system/usage/disks', methods=['GET'])
 def usage_disks():
     disks = []
@@ -86,24 +114,123 @@ def usage_disks():
 
         try:
             usage = psutil.disk_usage(disk)
+            connected = True
+            total_mb = usage.total // (1024**2)
+            used_mb = usage.used // (1024**2)
+            free_mb = total_mb - used_mb
+            usage_percent = usage.percent
         except Exception:
-            # Skip disks we can't stat (invalid mount points, etc.)
-            continue
+            # Disk is not accessible but still include it with connected=False
+            connected = False
+            total_mb = 0
+            used_mb = 0
+            free_mb = 0
+            usage_percent = 0
 
-        total_mb = usage.total // (1024**2)
-        used_mb = usage.used // (1024**2)
-        free_mb = total_mb - used_mb
         disks.append({
             "identifier": disk,
             "name": name,
             "color": color,
+            "connected": connected,
             "size": total_mb,
             "used": used_mb,
             "free": free_mb,
-            "percent": usage.percent
+            "percent": usage_percent
         })
 
     return flask.jsonify(disks)
+def background_logger():
+    """Continuously log system usage in the background"""
+    while True:
+        try:
+            max_lines = config.get('logLines', 10000)
+            ram = psutil.virtual_memory()
+            cpu = psutil.cpu_percent(interval=1)
+            disk = psutil.disk_usage('/')
+            
+            # Convert bytes to Megabytes
+            ramused = ram.used // (1024**2)
+            ramtotal = ram.total // (1024**2)
+            disktotal = disk.total // (1024**2)
+            diskused = disk.used // (1024**2)
+
+            now = datetime.now()
+            timestamp = now.isoformat()
+            
+            # Write to text log
+            with open('usage.log', 'a') as f:
+                f.write(f"[{now}] CPU: {cpu}%, RAM: {ramused} MB / {ramtotal} MB ({ram.percent}%), Disk (root): {diskused} MB / {disktotal} MB ({disk.percent}%)\n")
+            
+            if not max_lines == 0:
+                with open('usage.log', 'r') as f:
+                    lines = f.readlines()
+                    if len(lines) > max_lines:
+                        # remove oldest lines
+                        lines = lines[-max_lines:]
+                
+                with open('usage.log', 'w') as f:
+                    f.writelines(lines)
+            
+            # Write to JSON log for graphing
+            json_data = {
+                "timestamp": timestamp,
+                "cpu": round(cpu, 2),
+                "ram_used": ramused,
+                "ram_total": ramtotal,
+                "ram_percent": round(ram.percent, 2),
+                "disk_used": diskused,
+                "disk_total": disktotal,
+                "disk_percent": round(disk.percent, 2)
+            }
+            
+            # Read existing data
+            graph_data = []
+            if os.path.exists('usage.json'):
+                try:
+                    with open('usage.json', 'r') as f:
+                        graph_data = json.load(f)
+                except:
+                    graph_data = []
+            
+            # Add new entry
+            graph_data.append(json_data)
+            
+            # Keep only the most recent entries
+            if len(graph_data) > max_lines:
+                graph_data = graph_data[-max_lines:]
+            
+            # Write back to file
+            with open('usage.json', 'w') as f:
+                json.dump(graph_data, f, indent=2)
+            
+            time.sleep(2)  # Log every 2 seconds
+        except Exception as e:
+            print(f"Error in background logger: {e}")
+            time.sleep(2)
+
+# Start background logger thread
+logger_thread = threading.Thread(target=background_logger, daemon=True)
+logger_thread.start()
+
+fetches = 0
+
+@app.route('/log/download', methods=["GET"])
+def download_log():
+    return flask.send_file('usage.log', as_attachment=True)
+
+@app.route('/api/graph/data', methods=["GET"])
+def get_graph_data():
+    """Return JSON graph data"""
+    try:
+        with open('usage.json', 'r') as f:
+            data = json.load(f)
+        return flask.jsonify(data)
+    except:
+        return flask.jsonify([])
+
+@app.route('/graphview', methods=["GET"])
+def graphview():
+    return flask.send_file('graphview.html')
 
 @app.route('/system/usage', methods=["GET"])
 def log_usage():
@@ -118,17 +245,20 @@ def log_usage():
     diskused = disk.used // (1024**2)
 
     returnList = {
-        "ram_used": ramused,       # Use : instead of =
+        "ram_used": ramused,
         "ram_total": ramtotal,
         "ram_percent": ram.percent,
         "disk_used": diskused,
         "disk_total": disktotal,
-        "disk_percent": disk.percent, # Get the specific value
+        "disk_percent": disk.percent,
         "cpu": cpu
     }
-
     return flask.jsonify(returnList)
 
+@app.route('/config/lines', methods=['GET'])
+def get_log_lines():
+    log_lines = config.get('logLines', 10000)
+    return flask.jsonify({"logLines": log_lines})
 
 try:
     if __name__ == "__main__":

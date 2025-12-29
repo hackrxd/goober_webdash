@@ -146,6 +146,17 @@ function fetchDisks() {
                 // update DOM values
                 const nameEl = card.querySelector('.disk-name');
                 if (nameEl) nameEl.textContent = disk.name;
+
+                // update disconnected badge
+                const badgeEl = card.querySelector('.disk-badge');
+                if (badgeEl) {
+                    if (disk.connected === false) {
+                        badgeEl.style.display = 'inline-block';
+                    } else {
+                        badgeEl.style.display = 'none';
+                    }
+                }
+
                 const percentEl = card.querySelector('.disk-percent');
                 if (percentEl) {
                     percentEl.textContent = disk.percent + '%';

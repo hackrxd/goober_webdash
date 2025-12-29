@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script>
+            (function(){
+                try{
+                    var isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/.test(navigator.userAgent) || (screen.width && screen.width < 720);
+                    if(isMobile) document.documentElement.classList.add('is-mobile');
+                }catch(e){/* ignore */}
+            })();
+        </script>
+        <title id="title">Create Disk</title>
+        <link href="/main.css" rel="stylesheet">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+    </head>
+    <body>
+        <main style="display:flex;justify-content:center;padding:30px;">
+            <section class="card" style="max-width:460px;width:100%;">
+                <h2>Create Disk</h2>
+                <form id="create-disk-form">
+                    <label for="disk-path">Disk Path</label>
+                    <input type="text" id="disk-path" name="disk" placeholder="e.g. /, /dev/sda1 or C:\\" required style="width:100%;margin-top:6px;margin-bottom:12px;padding:8px;border-radius:6px;border:1px solid #2a2a2a;background:transparent;color:#fff;">
+
+                    <label for="disk-name">Disk Name</label>
+                    <input type="text" id="disk-name" name="name" placeholder="My Disk" required style="width:100%;margin-top:6px;margin-bottom:12px;padding:8px;border-radius:6px;border:1px solid #2a2a2a;background:transparent;color:#fff;">
+
+                    <label for="disk-color">Disk Color</label>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;margin-bottom:12px;">
+                        <input type="color" id="disk-color" name="color" value="#4ade80" style="width:48px;height:36px;border:0;padding:0;background:transparent;">
+                        <input type="text" id="disk-color-text" value="#4ade80" style="flex:1;padding:8px;border-radius:6px;border:1px solid #2a2a2a;background:transparent;color:#fff;">
+                    </div>
+
+                    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+                        <button type="button" id="cancel-btn" style="background:#333;color:#fff;padding:8px 12px;border-radius:6px;border:0;">Cancel</button>
+                        <button type="submit" style="background:var(--accent);color:#000;padding:8px 12px;border-radius:6px;border:0;">Create Disk</button>
+                    </div>
+                    <p id="create-result" style="margin-top:12px;color:#9ca3af;font-size:13px;display:none"></p>
+                </form>
+            </section>
+        </main>
+
+        <script>
+            // sync color input and text
+            const colorInput = document.getElementById('disk-color');
+            const colorText = document.getElementById('disk-color-text');
+            colorInput.addEventListener('input', () => colorText.value = colorInput.value);
+            colorText.addEventListener('input', () => {
+                const v = colorText.value.trim();
+                if (/^#[0-9a-fA-F]{6}$/.test(v)) colorInput.value = v;
+            });
+
+            document.getElementById('cancel-btn').addEventListener('click', () => { window.location.href = '/'; });
+
+            document.getElementById('create-disk-form').addEventListener('submit', function (e) {
+                e.preventDefault();
+                const path = document.getElementById('disk-path').value.trim();
+                const name = document.getElementById('disk-name').value.trim();
+                const color = document.getElementById('disk-color').value;
+                const result = document.getElementById('create-result');
+                if (!path || !name) {
+                    result.style.display = 'block';
+                    result.style.color = '#fca5a5';
+                    result.textContent = 'Please provide both path and name.';
+                    return;
+                }
+
+                fetch('/system/disks/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ disk: path, name: name, color: color })
+                }).then(resp => {
+                    if (resp.status === 204 || resp.status === 200) {
+                        result.style.display = 'block';
+                        result.style.color = '#86efac';
+                        result.textContent = 'Disk created — returning to dashboard...';
+                        setTimeout(() => window.location.href = '/', 900);
+                    } else {
+                        return resp.json().then(j => { throw j; });
+                    }
+                }).catch(err => {
+                    result.style.display = 'block';
+                    result.style.color = '#fca5a5';
+                    result.textContent = (err && err.error) ? err.error : 'Failed to create disk';
+                });
+            });
+        </script>
+        <script src="/loadname.js"></script>
+    </body>
+</html>

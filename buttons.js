@@ -23,18 +23,35 @@ function pauseButton() {
 }
 
 function addDisk() {
-    const diskName = prompt("Enter the name of the new disk:");
-    const disk = prompt("Enter the disk identifier (e.g., /dev/sda):");
-    // TODO show a color wheel dialog for color selection
-    const color = prompt("Enter a color for the disk (e.g., #4ade80):");
-    if (diskName) {
-        fetch('/system/disks/add', {
+    location.href = '/dashboard/create/disk'
+}
+
+function changeLog() {
+    const newSize = prompt("Enter maximum number of log lines to keep (e.g., 10000):");
+    const sizeInt = parseInt(newSize);
+    if (!isNaN(sizeInt) && sizeInt > 0) {
+        fetch('/config/edit/log', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ name: diskName, disk: disk, color: color })
-        })
+            body: JSON.stringify({ logLines: sizeInt })
+        }).then(() => {
+            alert(`Log size updated to ${sizeInt} lines.`);
+        });
+    } else {
+        alert("Invalid number entered.");
     }
-    location.reload();
+}
+
+function config() {
+    location.href = '/config/edit'
+}
+
+function downloadLog() {
+  location.href = '/log/download';
+}
+
+function switchToGraph() {
+    window.open('/graphview', '_blank');
 }

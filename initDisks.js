@@ -20,16 +20,43 @@ function initDisks() {
                 card.id = safeId;
                 card.setAttribute('aria-labelledby', `${safeId}-title`);
                 card.innerHTML = `
-                    <h2 id="${safeId}-title" class="disk-name">${disk.name}</h2>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;width:100%;margin-bottom:8px;" class="disk-heading">
+                        <h2 id="${safeId}-title" class="disk-name">${disk.name}</h2>
+                        <span class="disk-badge" style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;display:${!disk.connected ? 'inline-block' : 'none'};">Disconnected</span>
+                    </div>
                     <div class="chart-container" style="width:120px;height:120px;margin:8px 0;">
                         <canvas id="${chartId}"></canvas>
                     </div>
                     <p class="metric-value disk-percent" style="color: ${disk.color || '#4ade80'}">${disk.percent}%</p>
                     <p class="metric-value disk-usage">${formatSize ? formatSize(disk.used) : disk.used + ' MB'} / ${formatSize ? formatSize(disk.size) : disk.size + ' MB'}</p>
                     <p class="disk-identifier" style="color: #9ca3af; font-size: 12px; margin-top: 6px;">${disk.identifier}</p>
+                    <button class="delete-disk-button" data-disk="${encodeURIComponent(disk.identifier)}">Remove Disk</button>
                 `;
 
                 disksContainer.appendChild(card);
+
+                // attach delete handler programmatically (safer than inline onclick)
+                try {
+                    const delBtn = card.querySelector('.delete-disk-button');
+                    if (delBtn) {
+                        delBtn.addEventListener('click', function () {
+                            const decoded = decodeURIComponent(this.getAttribute('data-disk'));
+                            if (!confirm('Are you sure you want to delete this disk?')) return;
+                            fetch('/system/disks/remove', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ disk: decoded })
+                            }).then(resp => {
+                                if (resp.status === 204 || resp.status === 200) {
+                                    // reload page to refresh and show updated state
+                                    setTimeout(() => window.location.reload(), 500);
+                                } else {
+                                    console.error('Failed to remove disk', resp.status);
+                                }
+                            }).catch(err => console.error('Error removing disk', err));
+                        });
+                    }
+                } catch (e) {}
 
                 // initialize chart for this disk (if Chart.js is available)
                 try {

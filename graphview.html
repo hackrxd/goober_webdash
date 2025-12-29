@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function(){
+            try{
+                var isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/.test(navigator.userAgent) || (screen.width && screen.width < 720);
+                if(isMobile) document.documentElement.classList.add('is-mobile');
+            }catch(e){/* ignore */}
+        })();
+    </script>
+    <title>System Usage Graphs</title>
+    <link href="/main.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="error" id="error"></div>
+    <header>
+        <h1>Usage Graphs</h1>
+    </header>
+    
+    <div class="graph-container">
+        <div class="time-range">
+            <button class="time-btn" data-range="all">All Data</button>
+            <button class="time-btn active" data-range="1h">Last Hour</button>
+            <button class="time-btn" data-range="30m">Last 30 Min</button>
+            <button class="time-btn" data-range="10m">Last 10 Min</button>
+        </div>
+        
+        <div class="graph-controls">
+            <button onclick="refreshData()">Refresh</button>
+            <button onclick="toggleAutoRefresh()"> Auto Refresh: ON</button>
+            <span id="lastUpdate"></span>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Current CPU</div>
+                <div class="stat-value" id="currentCpu">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Current RAM</div>
+                <div class="stat-value" id="currentRam">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Current Disk</div>
+                <div class="stat-value" id="currentDisk">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg CPU (shown range)</div>
+                <div class="stat-value" id="avgCpu">--</div>
+            </div>
+        </div>
+        
+        <div class="charts-grid">
+            <div class="graph-card">
+                <div class="graph-title">CPU Usage (%)</div>
+                <div class="canvas-wrapper">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="graph-card">
+                <div class="graph-title">RAM Usage (%)</div>
+                <div class="canvas-wrapper">
+                    <canvas id="ramChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="graph-card">
+                <div class="graph-title">Disk Usage (%)</div>
+                <div class="canvas-wrapper">
+                    <canvas id="diskChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="graph-card">
+                <div class="graph-title">RAM Usage (MB)</div>
+                <div class="canvas-wrapper">
+                    <canvas id="ramMbChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let charts = {};
+        let allData = [];
+        let autoRefreshEnabled = true;
+        let refreshInterval = null;
+        let currentTimeRange = '1h';
+        
+        const chartConfig = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: {
+                        color: '#ffffff',
+                        font: {
+                            family: "'Montserrat', sans-serif",
+                            size: 11
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        };
+        
+        function initCharts() {
+            // CPU Chart
+            charts.cpu = new Chart(document.getElementById('cpuChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'CPU %', data: [], borderColor: '#ff6b6b', backgroundColor: 'rgba(255, 107, 107, 0.1)', borderWidth: 2, fill: true }] },
+                options: chartConfig
+            });
+            
+            // RAM Percentage Chart
+            charts.ram = new Chart(document.getElementById('ramChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'RAM %', data: [], borderColor: '#4ecdc4', backgroundColor: 'rgba(78, 205, 196, 0.1)', borderWidth: 2, fill: true }] },
+                options: chartConfig
+            });
+            
+            // Disk Chart
+            charts.disk = new Chart(document.getElementById('diskChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Disk %', data: [], borderColor: '#ffd93d', backgroundColor: 'rgba(255, 217, 61, 0.1)', borderWidth: 2, fill: true }] },
+                options: chartConfig
+            });
+            
+            // RAM MB Chart
+            const ramMbConfig = JSON.parse(JSON.stringify(chartConfig));
+            ramMbConfig.scales.y.beginAtZero = true;
+            ramMbConfig.scales.y.max = undefined;
+            
+            charts.ramMb = new Chart(document.getElementById('ramMbChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Used (MB)', data: [], borderColor: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.1)', borderWidth: 2, fill: true }] },
+                options: ramMbConfig
+            });
+        }
+        
+        function getFilteredData(range) {
+            if (range === 'all') return allData;
+            
+            const now = new Date();
+            const minutes = range === '30m' ? 30 : range === '10m' ? 10 : 60;
+            const cutoff = new Date(now.getTime() - minutes * 60000);
+            
+            return allData.filter(point => new Date(point.timestamp) > cutoff);
+        }
+        
+        function updateCharts(range = currentTimeRange) {
+            const filtered = getFilteredData(range);
+            
+            if (filtered.length === 0) {
+                document.getElementById('lastUpdate').textContent = 'No data yet...';
+                return;
+            }
+            
+            const labels = filtered.map(p => {
+                const d = new Date(p.timestamp);
+                return d.toLocaleTimeString();
+            });
+            
+            // Update CPU chart
+            charts.cpu.data.labels = labels;
+            charts.cpu.data.datasets[0].data = filtered.map(p => p.cpu);
+            charts.cpu.update('none');
+            
+            // Update RAM percentage chart
+            charts.ram.data.labels = labels;
+            charts.ram.data.datasets[0].data = filtered.map(p => p.ram_percent);
+            charts.ram.update('none');
+            
+            // Update Disk chart
+            charts.disk.data.labels = labels;
+            charts.disk.data.datasets[0].data = filtered.map(p => p.disk_percent);
+            charts.disk.update('none');
+            
+            // Update RAM MB chart
+            charts.ramMb.data.labels = labels;
+            charts.ramMb.data.datasets[0].data = filtered.map(p => p.ram_used);
+            charts.ramMb.update('none');
+            
+            // Update stats
+            if (filtered.length > 0) {
+                const latest = filtered[filtered.length - 1];
+                document.getElementById('currentCpu').textContent = latest.cpu + '%';
+                document.getElementById('currentRam').textContent = latest.ram_percent + '%';
+                document.getElementById('currentDisk').textContent = latest.disk_percent + '%';
+                
+                const avgCpu = (filtered.reduce((sum, p) => sum + p.cpu, 0) / filtered.length).toFixed(2);
+                document.getElementById('avgCpu').textContent = avgCpu + '%';
+                
+                const now = new Date();
+                document.getElementById('lastUpdate').textContent = 'Updated: ' + now.toLocaleTimeString();
+            }
+        }
+        
+        function refreshData() {
+            fetch('/api/graph/data')
+                .then(r => r.json())
+                .then(data => {
+                    allData = data;
+                    updateCharts(currentTimeRange);
+                })
+                .catch(err => console.error('Error fetching data:', err));
+        }
+        
+        function toggleAutoRefresh() {
+            autoRefreshEnabled = !autoRefreshEnabled;
+            const btn = event.target;
+            btn.textContent = 'Auto Refresh: ' + (autoRefreshEnabled ? 'ON' : 'OFF');
+            
+            if (autoRefreshEnabled) {
+                refreshInterval = setInterval(refreshData, 5000);
+                refreshData();
+            } else {
+                clearInterval(refreshInterval);
+            }
+        }
+        
+        // Time range buttons
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTimeRange = btn.dataset.range;
+                updateCharts(currentTimeRange);
+            });
+        });
+        
+        // Initialize
+        initCharts();
+        refreshData();
+        refreshInterval = setInterval(refreshData, 5000);
+    </script>
+</body>
+</html>
