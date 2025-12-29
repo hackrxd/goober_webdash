@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 import threading
 import time
+import subprocess
 
 app = flask.Flask(__name__, template_folder='errors')
 
@@ -18,35 +19,137 @@ config = {
 # check for github updates and auto-update files
 # restart server afterwards if files were changed
 
-def check_updates():
+update_status = {
+    "last_check": None,
+    "last_check_error": None,
+    "update_available": False,
+    "local_commit": None,
+    "remote_commit": None,
+    "is_updating": False,
+    "check_count": 0,
+    "failed_checks": 0
+}
+
+def run_command(cmd):
+    """Run a command and return output, handling both Windows and Unix"""
     try:
-        # Only run on Linux systems with systemctl
-        if os.name != 'posix':
-            return
-        
-        os.system("git fetch origin main 2>/dev/null")
-        local_commit = os.popen("git rev-parse HEAD 2>/dev/null").read().strip()
-        remote_commit = os.popen("git rev-parse origin/main 2>/dev/null").read().strip()
-        
-        if not local_commit or not remote_commit:
-            print("Warning: Could not get git commits, skipping update check")
-            return
-            
-        if local_commit != remote_commit:
-            print(f"Update available: {local_commit[:7]} -> {remote_commit[:7]}")
-            os.system("git pull origin main")
-            print("Update pulled, restarting service...")
-            os.system('sudo systemctl restart gooberwebdash')
+        import subprocess
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        return result.stdout.strip(), result.returncode, result.stderr.strip()
     except Exception as e:
-        print(f"Error checking for updates: {e}")
+        return "", 1, str(e)
+
+def check_updates():
+    """Check for updates and return status"""
+    global update_status
+    
+    try:
+        update_status["check_count"] += 1
+        
+        # Check if git is available
+        git_check, code, _ = run_command("git --version")
+        if code != 0:
+            update_status["last_check_error"] = "Git not installed or not in PATH"
+            update_status["failed_checks"] += 1
+            return False
+        
+        # Fetch updates from remote
+        fetch_output, fetch_code, fetch_err = run_command("git fetch origin main")
+        if fetch_code != 0:
+            update_status["last_check_error"] = f"Git fetch failed: {fetch_err or 'unknown error'}"
+            update_status["failed_checks"] += 1
+            return False
+        
+        # Get local and remote commits
+        local_output, local_code, _ = run_command("git rev-parse HEAD")
+        remote_output, remote_code, _ = run_command("git rev-parse origin/main")
+        
+        if local_code != 0 or remote_code != 0:
+            update_status["last_check_error"] = "Could not get commit hashes"
+            update_status["failed_checks"] += 1
+            return False
+        
+        local_commit = local_output[:7]
+        remote_commit = remote_output[:7]
+        
+        update_status["local_commit"] = local_commit
+        update_status["remote_commit"] = remote_commit
+        update_status["last_check"] = datetime.now().isoformat()
+        update_status["last_check_error"] = None
+        
+        if local_output != remote_output:
+            update_status["update_available"] = True
+            print(f"[UPDATE CHECK] Update available: {local_commit} -> {remote_commit}")
+            return True
+        else:
+            update_status["update_available"] = False
+            print(f"[UPDATE CHECK] System is up to date ({local_commit})")
+            return False
+            
+    except Exception as e:
+        update_status["last_check_error"] = str(e)
+        update_status["failed_checks"] += 1
+        print(f"[UPDATE CHECK] Error checking for updates: {e}")
+        return False
+
+def apply_update():
+    """Apply available update"""
+    global update_status
+    
+    if update_status["is_updating"]:
+        print("[UPDATE] Update already in progress")
+        return False
+    
+    if not update_status["update_available"]:
+        print("[UPDATE] No update available")
+        return False
+    
+    try:
+        update_status["is_updating"] = True
+        print("[UPDATE] Starting update...")
+        
+        # Pull latest changes
+        pull_output, pull_code, pull_err = run_command("git pull origin main")
+        if pull_code != 0:
+            update_status["is_updating"] = False
+            update_status["last_check_error"] = f"Git pull failed: {pull_err}"
+            print(f"[UPDATE] Failed to pull changes: {pull_err}")
+            return False
+        
+        print("[UPDATE] Changes pulled successfully")
+        print("[UPDATE] Update applied. Restart recommended.")
+        update_status["update_available"] = False
+        update_status["is_updating"] = False
+        return True
+        
+    except Exception as e:
+        update_status["is_updating"] = False
+        update_status["last_check_error"] = str(e)
+        print(f"[UPDATE] Error applying update: {e}")
+        return False
 
 def updateCheckLoop():
+    """Background thread to check for updates periodically"""
+    check_interval = 10 
+    consecutive_failures = 0
+    max_consecutive_failures = 5
+    
     while True:
         try:
             check_updates()
+            consecutive_failures = 0
         except Exception as e:
-            print(f"Error in update check loop: {e}")
-        time.sleep(10) 
+            consecutive_failures += 1
+            print(f"[UPDATE CHECK] Unhandled error (attempt {consecutive_failures}/{max_consecutive_failures}): {e}")
+            
+            if consecutive_failures >= max_consecutive_failures:
+                print("[UPDATE CHECK] Too many failures, pausing checks for 1 hour")
+                time.sleep(3600)
+                consecutive_failures = 0
+                continue
+        
+        time.sleep(check_interval)
+
 update_thread = threading.Thread(target=updateCheckLoop, daemon=True)
 update_thread.start()
 
@@ -302,6 +405,29 @@ def log_usage():
 def get_log_lines():
     log_lines = config.get('logLines', 10000)
     return flask.jsonify({"logLines": log_lines})
+
+@app.route('/system/updates/check', methods=['GET'])
+def api_check_updates():
+    """Check for updates"""
+    check_updates()
+    return flask.jsonify(update_status)
+
+@app.route('/system/updates/status', methods=['GET'])
+def api_update_status():
+    """Get current update status"""
+    return flask.jsonify(update_status)
+
+@app.route('/system/updates/apply', methods=['POST'])
+def api_apply_update():
+    """Apply available update"""
+    if not update_status["update_available"]:
+        return flask.jsonify({"error": "No update available"}), 400
+    
+    success = apply_update()
+    return flask.jsonify({
+        "success": success,
+        "message": update_status.get("last_check_error") or "Update applied successfully"
+    })
 
 try:
     if __name__ == "__main__":
