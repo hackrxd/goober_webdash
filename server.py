@@ -256,7 +256,7 @@ def log_usage():
         "disk_used": diskused,
         "disk_total": disktotal,
         "disk_percent": disk.percent,
-        "cpu": cpu,
+        "cpu": 100,
         "has_battery": True if psutil.sensors_battery() is not None else False,
         "battery_percent": psutil.sensors_battery().percent if psutil.sensors_battery() else None,
         "battery_is_charging": psutil.sensors_battery().power_plugged if psutil.sensors_battery() else None
