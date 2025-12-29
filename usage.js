@@ -101,10 +101,10 @@ function initCharts() {
     batteryChart = new Chart(batteryCtx, {
         type: 'doughnut',
         data: {
-            labels: ['Used', 'Available'],
+            labels: ['Charged', 'Uncharged'],
             datasets: [{
                 data: [0, 100],
-                backgroundColor: ['#f9c74f', '#374151'],
+                backgroundColor: ['#00ff55ff', '#374151'],
                 borderColor: 'rgb(28, 28, 28)',
                 borderWidth: 2
             }]
