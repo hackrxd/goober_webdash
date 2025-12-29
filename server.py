@@ -19,20 +19,34 @@ config = {
 # restart server afterwards if files were changed
 
 def check_updates():
-    os.system("git fetch origin main")
-    local_commit = os.popen("git rev-parse HEAD").read().strip()
-    remote_commit = os.popen("git rev-parse origin/main").read().strip()
-    if local_commit != remote_commit:
-        os.system("git pull origin main")
-        os.system('sudo systemctl restart gooberwebdash')
+    try:
+        # Only run on Linux systems with systemctl
+        if os.name != 'posix':
+            return
+        
+        os.system("git fetch origin main 2>/dev/null")
+        local_commit = os.popen("git rev-parse HEAD 2>/dev/null").read().strip()
+        remote_commit = os.popen("git rev-parse origin/main 2>/dev/null").read().strip()
+        
+        if not local_commit or not remote_commit:
+            print("Warning: Could not get git commits, skipping update check")
+            return
+            
+        if local_commit != remote_commit:
+            print(f"Update available: {local_commit[:7]} -> {remote_commit[:7]}")
+            os.system("git pull origin main")
+            print("Update pulled, restarting service...")
+            os.system('sudo systemctl restart gooberwebdash')
+    except Exception as e:
+        print(f"Error checking for updates: {e}")
 
 def updateCheckLoop():
     while True:
         try:
             check_updates()
         except Exception as e:
-            print(f"Error checking for updates: {e}")
-        time.sleep(5)
+            print(f"Error in update check loop: {e}")
+        time.sleep(10) 
 update_thread = threading.Thread(target=updateCheckLoop, daemon=True)
 update_thread.start()
 
