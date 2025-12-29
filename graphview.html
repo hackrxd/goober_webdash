@@ -87,8 +87,17 @@
                     <canvas id="ramMbChart"></canvas>
                 </div>
             </div>
+
+            <div class="graph-card">
+                <div class="graph-title">Battery Level (%)</div>
+                <div class="canvas-wrapper">
+                    <canvas id="batteryChart"></canvas>
+                </div>
+            </div>
+            
         </div>
     </div>
+
     
     <script>
         let charts = {};
@@ -166,6 +175,13 @@
                 data: { labels: [], datasets: [{ label: 'Used (MB)', data: [], borderColor: '#a78bfa', backgroundColor: 'rgba(167, 139, 250, 0.1)', borderWidth: 2, fill: true }] },
                 options: ramMbConfig
             });
+
+            // Battery Chart
+            charts.battery = new Chart(document.getElementById('batteryChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Battery %', data: [], borderColor: '#f9c74f', backgroundColor: 'rgba(249, 199, 79, 0.1)', borderWidth: 2, fill: true }] },
+                options: chartConfig
+            });
         }
         
         function getFilteredData(range) {
@@ -216,6 +232,17 @@
             charts.ramMb.data.labels = labels;
             charts.ramMb.data.datasets[0].data = filtered.map(p => p.ram_used);
             charts.ramMb.update('none');
+
+            // Update Battery chart
+            const hasBatteryData = filtered.some(p => p.battery_percent !== null && p.battery_percent !== undefined && p.battery_percent !== 101);
+            if (!hasBatteryData) {
+                document.getElementById('batteryChart').parentElement.style.display = 'none';
+            } else {
+                document.getElementById('batteryChart').parentElement.style.display = 'block';
+            }
+            charts.battery.data.labels = labels;
+            charts.battery.data.datasets[0].data = filtered.map(p => (p.battery_percent !== null && p.battery_percent !== 101) ? p.battery_percent : null);
+            charts.battery.update('none');
             
             // Update stats
             if (filtered.length > 0) {
@@ -268,7 +295,7 @@
         // Initialize
         initCharts();
         refreshData();
-        refreshInterval = setInterval(refreshData, 5000);
+        refreshInterval = setInterval(refreshData, 1000);
     </script>
 </body>
 </html>

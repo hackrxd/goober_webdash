@@ -1,4 +1,4 @@
-let cpuChart, ramChart, diskChart;
+let cpuChart, ramChart, diskChart, batteryChart;
 // shared map of disk safeId -> Chart instance (may be created by initDisks.js)
 let diskCharts = window.diskCharts = window.diskCharts || {};
 
@@ -18,11 +18,17 @@ function setAllZero() {
     ramChart.update();
     diskChart.data.datasets[0].data = [0, 100];
     diskChart.update();
+    if (batteryChart) {
+        batteryChart.data.datasets[0].data = [0, 100];
+        batteryChart.update();
+    }
     document.getElementById('cpu').innerHTML = `0%`;
     document.getElementById('ram').innerHTML = `0%`;
     document.getElementById('ramUsage').innerHTML = `0 MB / 0 MB`;
     document.getElementById('disk').innerHTML = `0%`;
     document.getElementById('diskUsage').innerHTML = `0 MB / 0 MB`;
+    const batteryEl = document.getElementById('battery');
+    if (batteryEl) batteryEl.innerHTML = `0%`;
 }
 
 function initCharts() {
@@ -90,6 +96,21 @@ function initCharts() {
         },
         options: chartOptions
     });
+    // Battery Chart
+    const batteryCtx = document.getElementById('batteryChart').getContext('2d');
+    batteryChart = new Chart(batteryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Used', 'Available'],
+            datasets: [{
+                data: [0, 100],
+                backgroundColor: ['#f9c74f', '#374151'],
+                borderColor: 'rgb(28, 28, 28)',
+                borderWidth: 2
+            }]
+        },
+        options: chartOptions
+    });
 }
 
 function fetchUsage() {
@@ -122,6 +143,20 @@ function fetchUsage() {
             document.getElementById('disk').innerHTML = `${diskPercent}%`;
             diskChart.data.datasets[0].data = [diskPercent, 100 - diskPercent];
             diskChart.update();
+
+            // Update Battery
+            const batteryPercent = data.battery_percent;
+            const batteryIsCharging = data.battery_is_charging;
+            const batteryCard = document.getElementById('batteryChart')?.parentElement;
+            if (batteryPercent !== null && batteryPercent !== undefined) {
+                if (batteryCard) batteryCard.style.display = 'block';
+                const chargingBadge = batteryIsCharging ? '<span style="display: inline-block; background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px; font-weight: 500;">Charging</span>' : '';
+                document.getElementById('battery').innerHTML = `${batteryPercent.toFixed(1)}%${chargingBadge}`;
+                batteryChart.data.datasets[0].data = [batteryPercent, 100 - batteryPercent];
+                batteryChart.update();
+            } else {
+                if (batteryCard) batteryCard.style.display = 'none';
+            }
         })
         .catch(error => setAllZero());
 }

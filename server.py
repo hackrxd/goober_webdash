@@ -147,6 +147,7 @@ def background_logger():
             ram = psutil.virtual_memory()
             cpu = psutil.cpu_percent(interval=1)
             disk = psutil.disk_usage('/')
+            battery = psutil.sensors_battery() if psutil.sensors_battery() else None
             
             # Convert bytes to Megabytes
             ramused = ram.used // (1024**2)
@@ -159,7 +160,10 @@ def background_logger():
             
             # Write to text log
             with open('usage.log', 'a') as f:
-                f.write(f"[{now}] CPU: {cpu}%, RAM: {ramused} MB / {ramtotal} MB ({ram.percent}%), Disk (root): {diskused} MB / {disktotal} MB ({disk.percent}%)\n")
+                if battery is not None:
+                    f.write(f"[{now}] CPU: {cpu}%, RAM: {ramused} MB / {ramtotal} MB ({ram.percent}%), Disk (root): {diskused} MB / {disktotal} MB ({disk.percent}%), Battery: {battery.percent}%\n")
+                else:
+                    f.write(f"[{now}] CPU: {cpu}%, RAM: {ramused} MB / {ramtotal} MB ({ram.percent}%), Disk (root): {diskused} MB / {disktotal} MB ({disk.percent}%)\n")
             
             if not max_lines == 0:
                 with open('usage.log', 'r') as f:
@@ -180,7 +184,8 @@ def background_logger():
                 "ram_percent": round(ram.percent, 2),
                 "disk_used": diskused,
                 "disk_total": disktotal,
-                "disk_percent": round(disk.percent, 2)
+                "disk_percent": round(disk.percent, 2),
+                "battery_percent": round(battery.percent, 2) if battery is not None else None
             }
             
             # Read existing data
@@ -203,10 +208,10 @@ def background_logger():
             with open('usage.json', 'w') as f:
                 json.dump(graph_data, f, indent=2)
             
-            time.sleep(2)  # Log every 2 seconds
+            time.sleep(5)  # Log every 5 seconds
         except Exception as e:
             print(f"Error in background logger: {e}")
-            time.sleep(2)
+            time.sleep(5)
 
 # Start background logger thread
 logger_thread = threading.Thread(target=background_logger, daemon=True)
@@ -251,7 +256,10 @@ def log_usage():
         "disk_used": diskused,
         "disk_total": disktotal,
         "disk_percent": disk.percent,
-        "cpu": cpu
+        "cpu": cpu,
+        "has_battery": True if psutil.sensors_battery() is not None else False,
+        "battery_percent": psutil.sensors_battery().percent if psutil.sensors_battery() else None,
+        "battery_is_charging": psutil.sensors_battery().power_plugged if psutil.sensors_battery() else None
     }
     return flask.jsonify(returnList)
 
