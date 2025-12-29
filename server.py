@@ -379,7 +379,7 @@ def background_logger():
                 "ram_percent": round(ram.percent, 2),
                 "disk_used": diskused,
                 "disk_total": disktotal,
-                "disk_percent": 100, # round(disk.percent, 2),
+                "disk_percent": round(disk.percent, 2),
                 "battery_percent": round(battery.percent, 2) if battery is not None else None
             }
             
@@ -450,7 +450,7 @@ def log_usage():
         "ram_percent": ram.percent,
         "disk_used": diskused,
         "disk_total": disktotal,
-        "disk_percent": disk.percent,
+        "disk_percent": 100,
         "cpu": cpu,
         "has_battery": True if psutil.sensors_battery() is not None else False,
         "battery_percent": psutil.sensors_battery().percent if psutil.sensors_battery() else None,
