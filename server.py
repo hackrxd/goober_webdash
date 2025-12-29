@@ -15,6 +15,27 @@ config = {
     "logLines": 10000
 } if not os.path.exists('config.json') else json.load(open('config.json'))
 
+# check for github updates and auto-update files
+# restart server afterwards if files were changed
+
+def check_updates():
+    os.system("git fetch origin main")
+    local_commit = os.popen("git rev-parse HEAD").read().strip()
+    remote_commit = os.popen("git rev-parse origin/main").read().strip()
+    if local_commit != remote_commit:
+        os.system("git pull origin main")
+        os.system('sudo systemctl restart gooberwebdash')
+
+def updateCheckLoop():
+    while True:
+        try:
+            check_updates()
+        except Exception as e:
+            print(f"Error checking for updates: {e}")
+        time.sleep(5)
+update_thread = threading.Thread(target=updateCheckLoop, daemon=True)
+update_thread.start()
+
 def save_config():
     with open('config.json', 'w') as f:
         json.dump(config, f, indent=4)
