@@ -52,7 +52,7 @@ function downloadLog() {
   location.href = '/log/download';
 }
 
-function downloadLog() {
+function downloadUpdateLog() {
   location.href = '/update.log';
 }
 
