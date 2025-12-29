@@ -29,7 +29,7 @@ header { display:flex; justify-content:center }
 
 /* Layout for the disks container so individual disk cards flow like other cards */
 .disks-container {
-    display: flex;
+    display: flexbox;
     gap: 40px;
     flex-wrap: wrap;
     align-items: flex-start;

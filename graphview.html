@@ -26,10 +26,12 @@
     
     <div class="graph-container">
         <div class="time-range">
-            <button class="time-btn" data-range="all">All Data</button>
+            <button class="time-btn" data-range="all">Lifetime</button>
             <button class="time-btn active" data-range="1h">Last Hour</button>
             <button class="time-btn" data-range="30m">Last 30 Min</button>
             <button class="time-btn" data-range="10m">Last 10 Min</button>
+            <button class="time-btn" data-range="5m">Last 5 Min</button>
+            <button class="time-btn" data-range="1m">Last 1 Min</button>
         </div>
         
         <div class="graph-controls">
@@ -168,11 +170,17 @@
         
         function getFilteredData(range) {
             if (range === 'all') return allData;
-            
+
             const now = new Date();
-            const minutes = range === '30m' ? 30 : range === '10m' ? 10 : 60;
+            let minutes;
+            if (range === '30m') minutes = 30;
+            else if (range === '10m') minutes = 10;
+            else if (range === '5m') minutes = 5;
+            else if (range === '1m') minutes = 1;
+            else minutes = 60; // default to 1 hour for '1h' or unknown values
+
             const cutoff = new Date(now.getTime() - minutes * 60000);
-            
+
             return allData.filter(point => new Date(point.timestamp) > cutoff);
         }
         
