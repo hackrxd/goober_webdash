@@ -55,3 +55,8 @@ function downloadLog() {
 function switchToGraph() {
     window.open('/graphview', '_blank');
 }
+
+function update() {
+    fetch('/system/updates/check', { method: 'GET' });
+    fetch('/system/updates/apply', { method: 'POST' });
+}
