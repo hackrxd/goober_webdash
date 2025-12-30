@@ -450,7 +450,7 @@ def log_usage():
         "ram_percent": ram.percent,
         "disk_used": diskused,
         "disk_total": disktotal,
-        "disk_percent": 100,
+        "disk_percent": -100,
         "cpu": cpu,
         "has_battery": True if psutil.sensors_battery() is not None else False,
         "battery_percent": psutil.sensors_battery().percent if psutil.sensors_battery() else None,
