@@ -485,9 +485,3 @@ def api_apply_update():
         "success": success,
         "message": update_status.get("last_check_error") or "Update applied successfully"
     })
-
-try:
-    if __name__ == "__main__":
-        app.run('0.0.0.0', 80)
-except KeyboardInterrupt as e:
-    save_config()
