@@ -113,7 +113,7 @@ function initCharts() {
         options: chartOptions
     });
     // GPU Load Chart
-    const gpuCtx = document.getElementById('batteryChart').getContext('2d');
+    const gpuCtx = document.getElementById('gpuChart').getContext('2d');
     batteryChart = new Chart(gpuCtx, {
         type: 'doughnut',
         data: {
