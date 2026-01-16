@@ -96,6 +96,7 @@ function initCharts() {
         },
         options: chartOptions
     });
+
     // Battery Chart
     const batteryCtx = document.getElementById('batteryChart').getContext('2d');
     batteryChart = new Chart(batteryCtx, {
@@ -105,6 +106,21 @@ function initCharts() {
             datasets: [{
                 data: [0, 100],
                 backgroundColor: ['#00ff55ff', '#374151'],
+                borderColor: 'rgb(28, 28, 28)',
+                borderWidth: 2
+            }]
+        },
+        options: chartOptions
+    });
+    // GPU Load Chart
+    const gpuCtx = document.getElementById('batteryChart').getContext('2d');
+    batteryChart = new Chart(gpuCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Used', 'Unused'],
+            datasets: [{
+                data: [0, 100],
+                backgroundColor: ['rgb(255, 0, 0)', '#374151'],
                 borderColor: 'rgb(28, 28, 28)',
                 borderWidth: 2
             }]
@@ -157,6 +173,9 @@ function fetchUsage() {
             } else {
                 if (batteryCard) batteryCard.style.display = 'none';
             }
+
+            // Update GPU
+            const gpuUsed = data.gpus
         })
         .catch(error => setAllZero());
 }
