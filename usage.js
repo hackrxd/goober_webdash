@@ -175,7 +175,6 @@ function fetchUsage() {
             }
 
             // Update GPU
-            const gpuUsed = data.gpus
         })
         .catch(error => setAllZero());
 }
