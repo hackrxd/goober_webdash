@@ -485,3 +485,6 @@ def api_apply_update():
         "success": success,
         "message": update_status.get("last_check_error") or "Update applied successfully"
     })
+
+if __name__ == "__main__":
+    app.run(port=80)
