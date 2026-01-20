@@ -3,10 +3,15 @@ import flask
 import os
 import numpy
 import json
+import asyncio
 from datetime import datetime
 import threading
 import time
 import subprocess
+try:
+    import websockets
+except Exception:
+    websockets = None
 
 app = flask.Flask(__name__, template_folder='errors')
 
@@ -485,6 +490,103 @@ def api_apply_update():
         "success": success,
         "message": update_status.get("last_check_error") or "Update applied successfully"
     })
+
+
+# --- Simple WebSocket server (runs alongside Flask) ---
+async def _ws_handler(websocket, path):
+    """Send periodic system and disk usage updates to connected WebSocket clients."""
+    try:
+        while True:
+            try:
+                ram = psutil.virtual_memory()
+                cpu = psutil.cpu_percent(interval=0.1)
+                disk = psutil.disk_usage('/')
+                battery = psutil.sensors_battery() if psutil.sensors_battery() else None
+
+                ramused = ram.used // (1024**2)
+                ramtotal = ram.total // (1024**2)
+                disktotal = disk.total // (1024**2)
+                diskused = disk.used // (1024**2)
+
+                system_data = {
+                    "type": "system",
+                    "timestamp": datetime.now().isoformat(),
+                    "cpu": round(cpu, 2),
+                    "ram_used": ramused,
+                    "ram_total": ramtotal,
+                    "ram_percent": round(ram.percent, 2),
+                    "disk_used": diskused,
+                    "disk_total": disktotal,
+                    "disk_percent": round(disk.percent, 2),
+                    "battery_percent": round(battery.percent, 2) if battery is not None else None,
+                    "battery_is_charging": battery.power_plugged if battery is not None else None
+                }
+
+                # build disks list based on config (mirrors /system/usage/disks)
+                disks_list = []
+                for disk_id, v in config.get('disks', {}).items():
+                    if isinstance(v, dict):
+                        name = v.get('name', disk_id)
+                        color = v.get('color', '#4ade80')
+                    else:
+                        name = v
+                        color = '#4ade80'
+                    try:
+                        usage = psutil.disk_usage(disk_id)
+                        connected = True
+                        total_mb = usage.total // (1024**2)
+                        used_mb = usage.used // (1024**2)
+                        usage_percent = usage.percent
+                    except Exception:
+                        connected = False
+                        total_mb = 0
+                        used_mb = 0
+                        usage_percent = 0
+
+                    disks_list.append({
+                        "identifier": disk_id,
+                        "name": name,
+                        "color": color,
+                        "connected": connected,
+                        "size": total_mb,
+                        "used": used_mb,
+                        "free": total_mb - used_mb,
+                        "percent": usage_percent
+                    })
+
+                system_data['disks'] = disks_list
+
+                await websocket.send(json.dumps(system_data))
+            except Exception as e:
+                try:
+                    await websocket.send(json.dumps({"type": "error", "message": str(e)}))
+                except Exception:
+                    pass
+
+            await asyncio.sleep(2)
+    except Exception:
+        # connection closed or other error - simply return
+        return
+
+
+def _start_ws_server():
+    if websockets is None:
+        print("[WS] 'websockets' package not installed - WebSocket server not started. Install via 'pip install websockets'.")
+        return
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    start_server = websockets.serve(_ws_handler, '0.0.0.0', 8765)
+    try:
+        server = loop.run_until_complete(start_server)
+        print("[WS] WebSocket server running on port 8765")
+        loop.run_forever()
+    except Exception as e:
+        print(f"[WS] WebSocket server failed to start: {e}")
+
+
+# start websocket server in background thread
+ws_thread = threading.Thread(target=_start_ws_server, daemon=True)
+ws_thread.start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80)

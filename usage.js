@@ -133,138 +133,134 @@ function fetchUsage() {
     if (paused) {
         return;
     }
-    fetch('/system/usage')
-        .then(response => response.json())
-        .then(data => {
-            // Update CPU
-            const cpuPercent = data.cpu.toFixed(1);
-            document.getElementById('cpu').innerHTML = `${cpuPercent}%`;
-            cpuChart.data.datasets[0].data = [cpuPercent, 100 - cpuPercent];
-            cpuChart.update();
+    // WebSocket-driven updates are used; this function is retained as a fallback.
+}
 
-            // Update RAM
-            const ramPercent = data.ram_percent.toFixed(1);
-            const ramUsed = data.ram_used;
-            const ramTotal = data.ram_total;
-            document.getElementById('ramUsage').innerHTML = `${ramUsed} MB / ${ramTotal} MB`;
-            document.getElementById('ram').innerHTML = `${ramPercent}%`;
-            ramChart.data.datasets[0].data = [ramPercent, 100 - ramPercent];
-            ramChart.update();
+function applySystemData(data) {
+    if (paused) return;
+    // Update CPU
+    const cpuPercent = Number(data.cpu || 0).toFixed(1);
+    document.getElementById('cpu').innerHTML = `${cpuPercent}%`;
+    cpuChart.data.datasets[0].data = [cpuPercent, Math.max(0, 100 - cpuPercent)];
+    cpuChart.update();
 
-            // Update Disk (global)
-            const diskPercent = data.disk_percent;
-            const diskUsed = data.disk_used;
-            const diskTotal = data.disk_total;
-            document.getElementById('diskUsage').innerHTML = `${formatSize(diskUsed)} / ${formatSize(diskTotal)}`;
-            document.getElementById('disk').innerHTML = `${diskPercent}%`;
-            diskChart.data.datasets[0].data = [diskPercent, 100 - diskPercent];
-            diskChart.update();
+    // Update RAM
+    const ramPercent = Number(data.ram_percent || 0).toFixed(1);
+    const ramUsed = data.ram_used || 0;
+    const ramTotal = data.ram_total || 0;
+    document.getElementById('ramUsage').innerHTML = `${ramUsed} MB / ${ramTotal} MB`;
+    document.getElementById('ram').innerHTML = `${ramPercent}%`;
+    ramChart.data.datasets[0].data = [ramPercent, Math.max(0, 100 - ramPercent)];
+    ramChart.update();
 
-            // Update Battery
-            const batteryPercent = data.battery_percent;
-            const batteryIsCharging = data.battery_is_charging;
-            const batteryCard = document.getElementById('batteryChart')?.parentElement;
-            if (batteryPercent !== null && batteryPercent !== undefined) {
-                if (batteryCard) batteryCard.style.display = 'block';
-                const chargingBadge = batteryIsCharging ? '<span style="display: inline-block; background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px; font-weight: 500;">Charging</span>' : '';
-                document.getElementById('battery').innerHTML = `${batteryPercent.toFixed(1)}%${chargingBadge}`;
-                batteryChart.data.datasets[0].data = [batteryPercent, 100 - batteryPercent];
-                batteryChart.update();
-            } else {
-                if (batteryCard) batteryCard.style.display = 'none';
-            }
+    // Update Disk (global)
+    const diskPercent = Number(data.disk_percent || 0);
+    const diskUsed = data.disk_used || 0;
+    const diskTotal = data.disk_total || 0;
+    document.getElementById('diskUsage').innerHTML = `${formatSize(diskUsed)} / ${formatSize(diskTotal)}`;
+    document.getElementById('disk').innerHTML = `${diskPercent}%`;
+    diskChart.data.datasets[0].data = [diskPercent, Math.max(0, 100 - diskPercent)];
+    diskChart.update();
 
-            // Update GPU
-        })
-        .catch(error => setAllZero());
+    // Update Battery
+    const batteryPercent = data.battery_percent;
+    const batteryIsCharging = data.battery_is_charging;
+    const batteryCard = document.getElementById('batteryChart')?.parentElement;
+    if (batteryPercent !== null && batteryPercent !== undefined) {
+        if (batteryCard) batteryCard.style.display = 'block';
+        const chargingBadge = batteryIsCharging ? '<span style="display: inline-block; background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px; font-weight: 500;">Charging</span>' : '';
+        document.getElementById('battery').innerHTML = `${Number(batteryPercent).toFixed(1)}%${chargingBadge}`;
+        batteryChart.data.datasets[0].data = [Number(batteryPercent), Math.max(0, 100 - Number(batteryPercent))];
+        batteryChart.update();
+    } else {
+        if (batteryCard) batteryCard.style.display = 'none';
+    }
 }
 
 // Fetch per-disk usage and update/create disk cards in the disks container
 function fetchDisks() {
     const container = document.getElementById('disks-container');
     if (!container) return;
+    // disk updates are delivered via WebSocket; retained as a fallback.
+}
 
-    fetch('/system/usage/disks', { cache: 'no-store' })
-        .then(response => response.json())
-        .then(data => {
-            const disks = data || [];
+function applyDisksData(disks) {
+    const container = document.getElementById('disks-container');
+    if (!container) return;
+    const list = disks || [];
 
-            // Update only: expect cards (and canvases) to be created by initDisks.js.
-            disks.forEach(disk => {
-                const safeId = 'disk-' + encodeURIComponent(disk.identifier).replace(/%/g, '');
-                const chartId = safeId + '-chart';
-                const card = document.getElementById(safeId);
-                if (!card) return; // card not created yet
+    list.forEach(disk => {
+        const safeId = 'disk-' + encodeURIComponent(disk.identifier).replace(/%/g, '');
+        const chartId = safeId + '-chart';
+        const card = document.getElementById(safeId);
+        if (!card) return; // card not created yet
 
-                // update DOM values
-                const nameEl = card.querySelector('.disk-name');
-                if (nameEl) nameEl.textContent = disk.name;
+        // update DOM values
+        const nameEl = card.querySelector('.disk-name');
+        if (nameEl) nameEl.textContent = disk.name;
 
-                // update disconnected badge
-                const badgeEl = card.querySelector('.disk-badge');
-                if (badgeEl) {
-                    if (disk.connected === false) {
-                        badgeEl.style.display = 'inline-block';
-                    } else {
-                        badgeEl.style.display = 'none';
-                    }
-                }
+        // update disconnected badge
+        const badgeEl = card.querySelector('.disk-badge');
+        if (badgeEl) {
+            if (disk.connected === false) {
+                badgeEl.style.display = 'inline-block';
+            } else {
+                badgeEl.style.display = 'none';
+            }
+        }
 
-                const percentEl = card.querySelector('.disk-percent');
-                if (percentEl) {
-                    percentEl.textContent = disk.percent + '%';
-                    percentEl.style.color = disk.color || '#4ade80';
-                }
-                const usageEl = card.querySelector('.disk-usage');
-                if (usageEl) usageEl.textContent = `${formatSize(disk.used)} / ${formatSize(disk.size)}`;
-                const idEl = card.querySelector('.disk-identifier');
-                if (idEl) idEl.textContent = disk.identifier;
+        const percentEl = card.querySelector('.disk-percent');
+        if (percentEl) {
+            percentEl.textContent = disk.percent + '%';
+            percentEl.style.color = disk.color || '#4ade80';
+        }
+        const usageEl = card.querySelector('.disk-usage');
+        if (usageEl) usageEl.textContent = `${formatSize(disk.used)} / ${formatSize(disk.size)}`;
+        const idEl = card.querySelector('.disk-identifier');
+        if (idEl) idEl.textContent = disk.identifier;
 
-                // update or initialize chart
-                let chart = diskCharts[safeId];
-                if (!chart) {
-                    const canvas = document.getElementById(chartId);
-                    if (canvas) {
-                        try {
-                            const ctx = canvas.getContext('2d');
-                            chart = new Chart(ctx, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: ['Used', 'Available'],
-                                    datasets: [{
-                                        data: [disk.percent, Math.max(0, 100 - disk.percent)],
-                                        backgroundColor: [disk.color || '#4ade80', '#374151'],
-                                        borderColor: 'rgb(28, 28, 28)',
-                                        borderWidth: 2
-                                    }]
-                                },
-                                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } } }
-                            });
-                            diskCharts[safeId] = chart;
-                        } catch (e) {}
-                    }
-                } else {
-                    chart.data.datasets[0].data = [disk.percent, Math.max(0, 100 - disk.percent)];
-                    chart.update();
-                }
-            });
+        // update or initialize chart
+        let chart = diskCharts[safeId];
+        if (!chart) {
+            const canvas = document.getElementById(chartId);
+            if (canvas) {
+                try {
+                    const ctx = canvas.getContext('2d');
+                    chart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Used', 'Available'],
+                            datasets: [{
+                                data: [disk.percent, Math.max(0, 100 - disk.percent)],
+                                backgroundColor: [disk.color || '#4ade80', '#374151'],
+                                borderColor: 'rgb(28, 28, 28)',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } } }
+                    });
+                    diskCharts[safeId] = chart;
+                } catch (e) {}
+            }
+        } else {
+            chart.data.datasets[0].data = [disk.percent, Math.max(0, 100 - disk.percent)];
+            chart.update();
+        }
+    });
 
-            // Remove cards for disks that no longer exist
-            const existing = Array.from(container.querySelectorAll('.disk-card'));
-            existing.forEach(c => {
-                const stillExists = disks.some(d => ('disk-' + encodeURIComponent(d.identifier).replace(/%/g, '')) === c.id);
-                if (!stillExists) {
-                    // destroy chart if present
-                    try {
-                        const ch = diskCharts[c.id];
-                        if (ch && typeof ch.destroy === 'function') ch.destroy();
-                    } catch (e) {}
-                    delete diskCharts[c.id];
-                    c.remove();
-                }
-            });
-        })
-        .catch(() => {});
+    // Remove cards for disks that no longer exist
+    const existing = Array.from(container.querySelectorAll('.disk-card'));
+    existing.forEach(c => {
+        const stillExists = list.some(d => ('disk-' + encodeURIComponent(d.identifier).replace(/%/g, '')) === c.id);
+        if (!stillExists) {
+            try {
+                const ch = diskCharts[c.id];
+                if (ch && typeof ch.destroy === 'function') ch.destroy();
+            } catch (e) {}
+            delete diskCharts[c.id];
+            c.remove();
+        }
+    });
 }
 let paused = false;
 
@@ -283,8 +279,47 @@ function pauseUpdates() {
 // Initialize charts when page loads
 window.addEventListener('DOMContentLoaded', function() {
     initCharts();
-    fetchUsage();
-    fetchDisks();
-    setInterval(fetchUsage, 2000);
-    setInterval(fetchDisks, 2000);
+    // connect to WebSocket server for real-time updates
+    connectWS();
 });
+
+function connectWS() {
+    const proto = (location.protocol === 'https:') ? 'wss://' : 'ws://';
+    const host = location.hostname + ':8765';
+    let url = proto + host;
+
+    try {
+        const socket = new WebSocket(url);
+        socket.addEventListener('open', () => {
+            console.log('[WS] connected to', url);
+        });
+
+        socket.addEventListener('message', (ev) => {
+            try {
+                const data = JSON.parse(ev.data);
+                if (data.type === 'system') {
+                    applySystemData(data);
+                    if (Array.isArray(data.disks)) applyDisksData(data.disks);
+                }
+            } catch (e) {
+                console.error('WS message parse error', e);
+            }
+        });
+
+        socket.addEventListener('close', () => {
+            console.log('[WS] closed, reconnecting in 2s');
+            setAllZero();
+            setTimeout(connectWS, 2000);
+        });
+
+        socket.addEventListener('error', (e) => {
+            console.error('[WS] error', e);
+            try { socket.close(); } catch (e) {}
+        });
+
+        window.__ws = socket;
+    } catch (e) {
+        console.error('WebSocket init failed', e);
+        setTimeout(connectWS, 2000);
+    }
+}
