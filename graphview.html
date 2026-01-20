@@ -260,7 +260,7 @@
         }
         
         function refreshData() {
-            fetch('/api/graph/data')
+            fetch('/graph/data')
                 .then(r => r.json())
                 .then(data => {
                     allData = data;
