@@ -1,76 +1,162 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <script>
-            (function(){
-                try{
-                    var isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/.test(navigator.userAgent) || (screen.width && screen.width < 720);
-                    if(isMobile) document.documentElement.classList.add('is-mobile');
-                }catch(e){/* ignore */}
-            })();
-        </script>
         <title id="title">Configuration</title>
         <link href="/main.css" rel="stylesheet">
         <link rel="preconnect" href="https://fonts.googleapis.com">
-        </head>
-        <body>
+        <script>
+            (function () {
+                try {
+                    var isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/.test(navigator.userAgent) || (screen.width && screen.width < 720);
+                    if (isMobile) document.documentElement.classList.add('is-mobile');
+                } catch (e) {
+                    /* ignore */
+                }
+            })();
+        </script>
+    </head>
+    <body>
         <div class="error" id="error"></div>
         <header>
             <h1 id="name-header">Configuration</h1>
         </header>
+
         <form>
             <main class="container">
                 <section class="card" aria-labelledby="config-title">
                     <h2 id="config-title">Configuration</h2>
+
                     <label for="name">Dashboard Name</label>
-                    <input type="text" id="name" name="name" style="width:100%;margin-top:6px;margin-bottom:12px;padding:8px;border-radius:6px;border:1px solid #2a2a2a;background:transparent;color:#fff;">
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        style="width:100%;margin-top:6px;margin-bottom:12px;padding:8px;border-radius:6px;border:1px solid #2a2a2a;background:transparent;color:#fff;"
+                    />
+
                     <label for="logLines">Maximum Log Lines</label>
-                    <input type="number" id="logLines" name="logLines" min="1000" max="100000" step="1000" value="10000" style="width:100%;margin-top:6px;margin-bottom:12px;padding:8px;border-radius:6px;border:1px solid #2a2a2a;background:transparent;color:#fff;">
+                    <input
+                        type="number"
+                        id="logLines"
+                        name="logLines"
+                        min="1000"
+                        max="100000"
+                        step="1000"
+                        value="10000"
+                        style="width:100%;margin-top:6px;margin-bottom:12px;padding:8px;border-radius:6px;border:1px solid #2a2a2a;background:transparent;color:#fff;"
+                    />
+
                     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
                         <button type="button" id="save-config-btn" style="background:var(--accent);color:#000;padding:8px 12px;border-radius:6px;border:0;">Save Configuration</button>
                     </div>
+
+                    <div style="margin-top:10px;display:flex;gap:8px;">
+                        <button type="button" id="download-config-btn">Download config.json</button>
+                        <button type="button" id="upload-config-btn">Upload config.json</button>
+                    </div>
+
                     <p id="config-result" style="margin-top:12px;color:#9ca3af;font-size:13px;display:none"></p>
                 </section>
             </main>
         </form>
-        </body>
-        <!--submission script-->
+
+        <!-- submission script -->
         <script>
+            function downloadConfig() {
+                fetch('/config/download')
+                    .then((response) => response.blob())
+                    .then((blob) => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'config.json';
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                    })
+                    .catch((err) => {
+                        const result = document.getElementById('config-result');
+                        result.style.display = 'block';
+                        result.style.color = '#f87171';
+                        result.innerText = 'Error downloading configuration: ' + (err.message || err);
+                    });
+            }
+
+            function uploadConfig() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('configFile', file);
+
+                    fetch('/config/upload', {
+                        method: 'POST',
+                        body: formData,
+                    })
+                        .then((response) => response.json())
+                        .then((data) => {
+                            const result = document.getElementById('config-result');
+                            result.style.display = 'block';
+                            if (data && data.success) {
+                                result.style.color = '#34d399';
+                                result.innerText = 'Configuration uploaded successfully.';
+                                location.href = '/';
+                            } else {
+                                result.style.color = '#f87171';
+                                result.innerText = 'Error uploading configuration: ' + (data && data.error ? data.error : 'Unknown error');
+                            }
+                        })
+                        .catch((error) => {
+                            const result = document.getElementById('config-result');
+                            result.style.display = 'block';
+                            result.style.color = '#f87171';
+                            result.innerText = 'Error uploading configuration: ' + (error.message || error);
+                        });
+                };
+                input.click();
+            }
+
+            document.getElementById('download-config-btn').addEventListener('click', downloadConfig);
+            document.getElementById('upload-config-btn').addEventListener('click', uploadConfig);
+
             document.getElementById('save-config-btn').addEventListener('click', function () {
                 const name = document.getElementById('name').value.trim();
-                const logLines = parseInt(document.getElementById('logLines').value);
+                const logLines = parseInt(document.getElementById('logLines').value, 10);
                 const result = document.getElementById('config-result');
 
                 fetch('/config/edit', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
                     },
-                        body: JSON.stringify({ name: name, logLines: logLines })
+                    body: JSON.stringify({ name: name, logLines: logLines }),
                 })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
+                    .then((response) => response.json())
+                    .then((data) => {
                         result.style.display = 'block';
-                        result.style.color = '#34d399'; // green
-                        result.innerText = 'Configuration saved successfully.';
-                        location.href = '/';
-                    } else {
+                        if (data && data.success) {
+                            result.style.color = '#34d399';
+                            result.innerText = 'Configuration saved successfully.';
+                            location.href = '/';
+                        } else {
+                            result.style.color = '#f87171';
+                            result.innerText = 'Error saving configuration: ' + (data && data.error ? data.error : 'Unknown error');
+                        }
+                    })
+                    .catch((error) => {
                         result.style.display = 'block';
-                        result.style.color = '#f87171'; // red
-                        result.innerText = 'Error saving configuration: ' + data.error;
-                        location.href = '/';
-                    }
-                })
-                .catch(error => {
-                    result.style.display = 'block';
-                    result.style.color = '#f87171'; // red
-                    result.innerText = 'Error saving configuration: ' + error.message;
-                    location.href = '/';
-                });
+                        result.style.color = '#f87171';
+                        result.innerText = 'Error saving configuration: ' + (error.message || error);
+                    });
             });
-            
         </script>
+
         <script src="/loadconfig.js"></script>
+    </body>
 </html>

@@ -15,6 +15,22 @@ except Exception:
 
 app = flask.Flask(__name__, template_folder='errors')
 
+def get_config(attribute):
+    """Get configuration attribute with default fallback"""
+    defaults = {
+        "name": "New Dashboard",
+        "disks": {},
+        "logLines": 10000,
+        "updateInterval": 5
+    }
+    with open('config.json', 'r') as f:
+        config = json.load(f)
+    try:
+        return config[attribute]
+    except KeyError:
+        return defaults.get(attribute)
+    
+
 config = {
     "name": "New Dashboard",
     "disks": {},
@@ -491,9 +507,31 @@ def api_apply_update():
         "message": update_status.get("last_check_error") or "Update applied successfully"
     })
 
+@app.route('/config/download', methods=['GET'])
+def download_config():
+    return flask.send_file('config.json', as_attachment=True)
+
+@app.route('/config/upload', methods=['POST'])
+def upload_config():
+    if 'file' not in flask.request.files:
+        return flask.jsonify({"error": "No file part"}), 400
+    file = flask.request.files['file']
+    if file.filename == '':
+        return flask.jsonify({"error": "No selected file"}), 400
+    if file:
+        try:
+            data = json.load(file)
+            with open('config.json', 'w') as f:
+                json.dump(data, f, indent=4)
+            global config
+            config = data
+            return flask.jsonify({"success": True}), 200
+        except Exception as e:
+            return flask.jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
+
 
 # --- Simple WebSocket server (runs alongside Flask) ---
-async def _ws_handler(websocket, path):
+async def _ws_handler(websocket, path=None):
     """Send periodic system and disk usage updates to connected WebSocket clients."""
     try:
         while True:
@@ -501,12 +539,14 @@ async def _ws_handler(websocket, path):
                 ram = psutil.virtual_memory()
                 cpu = psutil.cpu_percent(interval=0.1)
                 disk = psutil.disk_usage('/')
-                battery = psutil.sensors_battery() if psutil.sensors_battery() else None
+                battery = psutil.sensors_battery() if psutil.sensors_battery() else 100
 
                 ramused = ram.used // (1024**2)
                 ramtotal = ram.total // (1024**2)
                 disktotal = disk.total // (1024**2)
                 diskused = disk.used // (1024**2)
+
+                update_interval = get_config('updateInterval')
 
                 system_data = {
                     "type": "system",
@@ -563,7 +603,7 @@ async def _ws_handler(websocket, path):
                 except Exception:
                     pass
 
-            await asyncio.sleep(2)
+            await asyncio.sleep(update_interval)
     except Exception:
         # connection closed or other error - simply return
         return
@@ -575,11 +615,16 @@ def _start_ws_server():
         return
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    start_server = websockets.serve(_ws_handler, '0.0.0.0', 8765)
+
+    async def _ws_main():
+        # Start the websockets server from within a running asyncio context
+        async with websockets.serve(_ws_handler, '0.0.0.0', 8765):
+            print("[WS] WebSocket server running on port 8765")
+            # keep running indefinitely
+            await asyncio.Future()
+
     try:
-        server = loop.run_until_complete(start_server)
-        print("[WS] WebSocket server running on port 8765")
-        loop.run_forever()
+        loop.run_until_complete(_ws_main())
     except Exception as e:
         print(f"[WS] WebSocket server failed to start: {e}")
 
