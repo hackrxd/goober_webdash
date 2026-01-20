@@ -8,6 +8,7 @@ from datetime import datetime
 import threading
 import time
 import subprocess
+import sys
 try:
     import websockets
 except Exception:
@@ -160,26 +161,30 @@ def check_updates():
         return False
 
 def apply_update():
-    """Apply available update"""
+    """Apply available update. Performs `git pull origin main` and returns a tuple
+    (success: bool, restarted: bool). If pull succeeds the process will be
+    exec'd to restart the server so the new code takes effect.
+    """
     global update_status
-    
-    if update_status["is_updating"]:
+
+    # Check for re-entrancy
+    if update_status.get("is_updating"):
         msg = "Update already in progress"
         log_update(f"WARNING: {msg}")
         print(f"[UPDATE] {msg}")
         return False
-    
-    if not update_status["update_available"]:
+
+    if not update_status.get("update_available"):
         msg = "No update available"
         log_update(f"WARNING: {msg}")
         print(f"[UPDATE] {msg}")
         return False
-    
+
     try:
         update_status["is_updating"] = True
         log_update("Starting update...")
         print("[UPDATE] Starting update...")
-        
+
         # Pull latest changes
         pull_output, pull_code, pull_err = run_command("git pull origin main")
         if pull_code != 0:
@@ -189,15 +194,27 @@ def apply_update():
             log_update(f"ERROR: {error_msg}")
             print(f"[UPDATE] {error_msg}")
             return False
-        
+
         log_update("Changes pulled successfully")
-        log_update("Update applied. Restart recommended.")
         print("[UPDATE] Changes pulled successfully")
-        print("[UPDATE] Update applied. Restart recommended.")
+
+        # Clear the flag so further checks behave correctly
         update_status["update_available"] = False
         update_status["is_updating"] = False
-        return True
-        
+
+        # Restart process to apply update
+        try:
+            log_update("Restarting process after update...")
+            print("[UPDATE] Restarting process to apply update...")
+            python = sys.executable
+            os.execv(python, [python] + sys.argv)
+        except Exception as e:
+            error_msg = f"Update applied but restart failed: {e}"
+            update_status["last_check_error"] = error_msg
+            log_update(f"ERROR: {error_msg}")
+            print(f"[UPDATE] {error_msg}")
+            return True
+
     except Exception as e:
         update_status["is_updating"] = False
         error_msg = str(e)
@@ -215,6 +232,14 @@ def updateCheckLoop():
     while True:
         try:
             check_updates()
+            # If an update is available, apply it and restart the process
+            if update_status.get("update_available") and not update_status.get("is_updating"):
+                print("[UPDATE CHECK] Update detected — applying automatically.")
+                try:
+                    apply_update()
+                    # apply_update will attempt to execv and restart the process
+                except Exception as e:
+                    print(f"[UPDATE CHECK] Automatic update failed: {e}")
             consecutive_failures = 0
         except Exception as e:
             consecutive_failures += 1
