@@ -1,163 +1,86 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini RLHF Roleplay Chat</title>
-<style>
-  body {
-    margin: 0;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #121212;
-    color: #e0e0e0;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-  #chat {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .message {
-    padding: 10px 15px;
-    border-radius: 10px;
-    max-width: 75%;
-    word-wrap: break-word;
-  }
-  .user {
-    background-color: #1f1f1f;
-    align-self: flex-end;
-  }
-  .bot {
-    background-color: #2b2b2b;
-    align-self: flex-start;
-  }
-  .selected {
-    border: 2px solid #00ff99;
-  }
-  #inputForm {
-    display: flex;
-    padding: 10px;
-    background-color: #1a1a1a;
-    gap: 10px;
-  }
-  #prompt {
-    flex: 1;
-    padding: 10px;
-    border-radius: 8px;
-    border: none;
-    background-color: #2a2a2a;
-    color: #e0e0e0;
-  }
-  #send {
-    padding: 0 20px;
-    border: none;
-    border-radius: 8px;
-    background-color: #00ff99;
-    color: #121212;
-    font-weight: bold;
-    cursor: pointer;
-  }
-  #send:hover {
-    background-color: #00cc77;
-  }
-  .response-option {
-    background-color: #333333;
-    padding: 8px 12px;
-    margin-top: 5px;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-  .response-option:hover {
-    background-color: #444444;
-  }
-  .markdown {
-    white-space: pre-wrap;
-  }
-</style>
-</head>
-<body>
-<div id="chat"></div>
-<form id="inputForm">
-  <input type="text" id="prompt" placeholder="Enter your message..." autocomplete="off"/>
-  <button type="submit" id="send">Send</button>
-</form>
-
-<script>
-const chat = document.getElementById('chat');
-const inputForm = document.getElementById('inputForm');
-const promptInput = document.getElementById('prompt');
-
-const ws = new WebSocket(`ws://${location.host}/ws`);
-const responsesBuffer = {};
-
-function addMessage(text, sender="bot", selected=false) {
-  const div = document.createElement('div');
-  div.className = `message ${sender} ${selected ? "selected" : ""}`;
-  div.innerHTML = `<span class="markdown">${text}</span>`;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
-  return div;
-}
-
-function streamResponse(index, chunk, done=false) {
-  if (!responsesBuffer[index]) {
-    responsesBuffer[index] = "";
-  }
-  responsesBuffer[index] += chunk;
-
-  const elemId = `response-${index}`;
-  let elem = document.getElementById(elemId);
-  if (!elem) {
-    elem = document.createElement('div');
-    elem.id = elemId;
-    elem.className = 'bot message';
-    chat.appendChild(elem);
-  }
-  elem.innerHTML = `<span class="markdown">${responsesBuffer[index]}</span>`;
-
-  if (done) {
-    elem.classList.add('response-option');
-    elem.onclick = () => {
-      document.querySelectorAll('.response-option').forEach(el => el.classList.remove('selected'));
-      elem.classList.add('selected');
-    };
-    chat.scrollTop = chat.scrollHeight;
-  }
-  chat.scrollTop = chat.scrollHeight;
-}
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-
-  if (data.selected) {
-    addMessage(data.selected, "bot", true);
-    Object.keys(responsesBuffer).forEach(key => {
-      const elem = document.getElementById(`response-${key}`);
-      if (elem) elem.remove();
-    });
-    for (const key in responsesBuffer) delete responsesBuffer[key];
-    return;
-  }
-
-  if ("index" in data && "text" in data) {
-    streamResponse(data.index, data.text, data.done);
-  }
-};
-
-inputForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const message = promptInput.value.trim();
-  if (!message) return;
-
-  addMessage(message, "user");
-  ws.send(JSON.stringify({prompt: message}));
-  promptInput.value = "";
-});
-</script>
-</body>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script>
+            (function(){
+                try{
+                    var isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/.test(navigator.userAgent) || (screen.width && screen.width < 720);
+                    if(isMobile) document.documentElement.classList.add('is-mobile');
+                }catch(e){/* ignore */}
+            })();
+        </script>
+        <title id="title">Usage</title>
+        <link href="/main.css" rel="stylesheet">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <div class="error" id="error"></div>
+        <header>
+            <h1 id="name">homelab name</h1>
+        </header>
+        <button onclick="switchToGraph()">Open Graphs</button>
+        <main class="container" role="main">
+            <section class="card" aria-labelledby="cpu-title">
+                <h2 id="cpu-title">CPU</h2>
+                <div class="chart-container">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+                <p id="cpu" class="metric-value">Loading...</p>
+            </section>
+            <section class="card" aria-labelledby="ram-title">
+                <h2 id="ram-title">RAM</h2>
+                <div class="chart-container">
+                    <canvas id="ramChart"></canvas>
+                </div>
+                <p id="ram" class="metric-value">Loading...</p>
+                <p id="ramUsage" class="metric-value"></p>
+            </section>
+            <section class="card" aria-labelledby="disk-title">
+                <h2 id="disk-title">Disk</h2>
+                <div class="chart-container">
+                    <canvas id="diskChart"></canvas>
+                </div>
+                <p id="disk" class="metric-value">Loading...</p>
+                <p id="diskUsage" class="metric-value"></p>
+            </section>
+            <section class="card" aria-labelledby="battery-title">
+                <h2 id="battery-title">Battery</h2>
+                <div class="chart-container">
+                    <canvas id="batteryChart"></canvas>
+                </div>
+                <p id="battery" class="metric-value">Loading...</p>
+                <p id="batteryUsage" class="metric-value"></p>
+            </section>
+            <section class="card" aria-labelledby="gpu-title">
+                <h2 id="gpu-title">GPU</h2>
+                <div class="chart-container">
+                    <canvas id="gpuChart"></canvas>
+                </div>
+                <p id="battery" class="metric-value">Loading...</p>
+                <p id="batteryUsage" class="metric-value"></p>
+            </section>
+            <div id="disks-container" class="disks-container">
+                <!-- Individual disks will be added here as <section class="card"> elements -->
+            </div>
+            <section class="card" aria-labelledby="system-title">
+                <h2 id="system-title">Controls</h2>
+                <button class="restartButton" onclick="reboot()">Reboot</button>
+                <button class="configButton" onclick="config()">Change Configuration</button>
+                <button class="downloadLogButton" onclick="downloadLog()">Download Log</button>
+                <button class="downloadUpdateLog" onclick="downloadUpdateLog()">Download Update Log</button>
+                <button class="pauseButton" onclick="pauseButton()" id="pauseButton">Pause</button>
+                <button class="addDiskButton" onclick="addDisk()">Add Disk</button>
+                <button class="updateButton" onclick="update()">Check/Apply Updates</button>
+            </section>
+        </main>
+        <script src="/loadname.js"></script>
+        <script src="/usage.js"></script>
+        <script src="/buttons.js"></script>
+        <script src="/error.js"></script>
+        <script src="/initDisks.js"></script>
+    </body>
 </html>
