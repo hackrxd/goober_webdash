@@ -3,3 +3,4 @@ config.json
 usage.log
 usage.json
 *.log
+test_ws_client.py

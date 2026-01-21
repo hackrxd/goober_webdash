@@ -564,14 +564,21 @@ async def _ws_handler(websocket, path=None):
                 ram = psutil.virtual_memory()
                 cpu = psutil.cpu_percent(interval=0.1)
                 disk = psutil.disk_usage('/')
-                battery = psutil.sensors_battery() if psutil.sensors_battery() else 100
+                # sensors_battery() may return None; preserve None instead of using an int
+                battery = psutil.sensors_battery() or None
 
                 ramused = ram.used // (1024**2)
                 ramtotal = ram.total // (1024**2)
                 disktotal = disk.total // (1024**2)
                 diskused = disk.used // (1024**2)
 
-                update_interval = get_config('updateInterval')
+                # Read update interval from config (seconds). Use 2s default for invalid values.
+                try:
+                    update_interval = float(config.get('updateInterval', 2))
+                    if update_interval <= 0:
+                        update_interval = 2.0
+                except Exception:
+                    update_interval = 2.0
 
                 system_data = {
                     "type": "system",
