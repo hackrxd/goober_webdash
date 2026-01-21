@@ -590,11 +590,10 @@ async def _ws_handler(websocket, path=None):
 
                 # Read update interval from config (seconds). Use 2s default for invalid values.
                 try:
-                    update_interval = float(config.get('updateInterval', 2))
-                    if update_interval <= 0:
-                        update_interval = 2.0
+                    update_interval = get_config('updateInterval')
+                    update_interval = float(update_interval)
                 except Exception:
-                    update_interval = 2.0
+                    update_interval = 0
 
                 system_data = {
                     "type": "system",
