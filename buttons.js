@@ -64,3 +64,10 @@ function update() {
     fetch('/system/updates/check', { method: 'GET' });
     fetch('/system/updates/apply', { method: 'POST' });
 }
+
+function ramFlood() {
+    areyousure = confirm("Are you sure you want to flood the system RAM? This may cause the server to become unresponsive.");
+    if (areyousure) {
+        fetch('/system/ram/flood', { method: 'POST' })
+    }
+}

