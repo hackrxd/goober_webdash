@@ -338,6 +338,17 @@ def edit_config():
     data = flask.request.get_json()
     config['logLines'] = data.get('logLines', 10000)
     config['name'] = data.get('name', config['name'])
+    # Allow updating the WebSocket update interval (seconds)
+    try:
+        ui = data.get('updateInterval', config.get('updateInterval', 2))
+        # coerce to float and enforce a sensible minimum
+        ui = float(ui)
+        if ui <= 0:
+            ui = 2.0
+        config['updateInterval'] = ui
+    except Exception:
+        # ignore invalid values and keep existing
+        pass
     save_config()
     return '', 200
 
@@ -507,7 +518,8 @@ def log_usage():
 @app.route('/config/lines', methods=['GET'])
 def get_log_lines():
     log_lines = config.get('logLines', 10000)
-    return flask.jsonify({"logLines": log_lines})
+    update_interval = config.get('updateInterval', 2)
+    return flask.jsonify({"logLines": log_lines, "updateInterval": update_interval})
 
 @app.route('/system/updates/check', methods=['GET'])
 def api_check_updates():
@@ -538,9 +550,13 @@ def download_config():
 
 @app.route('/config/upload', methods=['POST'])
 def upload_config():
-    if 'file' not in flask.request.files:
+    # Accept either 'file' (legacy) or 'configFile' as the form key
+    if 'file' in flask.request.files:
+        file = flask.request.files['file']
+    elif 'configFile' in flask.request.files:
+        file = flask.request.files['configFile']
+    else:
         return flask.jsonify({"error": "No file part"}), 400
-    file = flask.request.files['file']
     if file.filename == '':
         return flask.jsonify({"error": "No selected file"}), 400
     if file:

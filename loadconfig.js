@@ -16,5 +16,13 @@ function getLogLines() {
 }
 updateName();
 getLogLines().then(lines => {
-    document.getElementById('logLines').value = lines;
+    // `lines` may now be an object with `logLines` and `updateInterval`
+    if (lines && typeof lines === 'object') {
+        document.getElementById('logLines').value = lines.logLines;
+        if (document.getElementById('updateInterval')) {
+            document.getElementById('updateInterval').value = lines.updateInterval;
+        }
+    } else {
+        document.getElementById('logLines').value = lines;
+    }
 });
