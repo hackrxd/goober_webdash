@@ -1,9 +1,9 @@
 import psutil
 import flask
 import os
-import numpy
 import json
 import asyncio
+import re
 from datetime import datetime
 import threading
 import time
@@ -15,6 +15,99 @@ except Exception:
     websockets = None
 
 app = flask.Flask(__name__, template_folder='errors')
+
+SAFE_STATIC_EXTENSIONS = {'.html', '.css', '.js', '.json'}
+HEX_COLOR_PATTERN = re.compile(r'^#[0-9a-fA-F]{6}$')
+NAME_PATTERN = re.compile(r'^[A-Za-z0-9 _.-]{1,64}$')
+
+
+def _is_safe_static_path(file_name):
+    """Only serve local static files with an allowlisted extension."""
+    if not isinstance(file_name, str) or not file_name:
+        return False
+    if os.path.isabs(file_name):
+        return False
+
+    normalized = os.path.normpath(file_name).replace('\\', '/')
+    if normalized == '..' or normalized.startswith('../') or '/../' in normalized:
+        return False
+
+    ext = os.path.splitext(normalized)[1].lower()
+    if ext not in SAFE_STATIC_EXTENSIONS:
+        return False
+
+    return os.path.isfile(normalized)
+
+
+def _validate_uploaded_config(data):
+    """Validate uploaded config JSON and return a normalized copy."""
+    if not isinstance(data, dict):
+        return None, "Config must be a JSON object"
+
+    validated = {}
+
+    name = data.get('name', 'New Dashboard')
+    if not isinstance(name, str):
+        return None, "'name' must be a string"
+    name = name.strip()
+    if not name:
+        return None, "'name' cannot be empty"
+    if len(name) > 64:
+        return None, "'name' cannot exceed 64 characters"
+    validated['name'] = name
+
+    log_lines = data.get('logLines', 10000)
+    if not isinstance(log_lines, int):
+        return None, "'logLines' must be an integer"
+    if log_lines < 0 or log_lines > 1_000_000:
+        return None, "'logLines' must be between 0 and 1000000"
+    validated['logLines'] = log_lines
+
+    update_interval = data.get('updateInterval', 5)
+    try:
+        update_interval = float(update_interval)
+    except (TypeError, ValueError):
+        return None, "'updateInterval' must be a number"
+    if update_interval < 0.5 or update_interval > 60:
+        return None, "'updateInterval' must be between 0.5 and 60 seconds"
+    validated['updateInterval'] = update_interval
+
+    raw_disks = data.get('disks', {})
+    if not isinstance(raw_disks, dict):
+        return None, "'disks' must be an object"
+    if len(raw_disks) > 128:
+        return None, "'disks' supports up to 128 entries"
+
+    disks = {}
+    for disk_id, disk_value in raw_disks.items():
+        if not isinstance(disk_id, str) or not disk_id.strip():
+            return None, "Each disk key must be a non-empty string"
+
+        disk_id = disk_id.strip()
+
+        if isinstance(disk_value, str):
+            disk_name = disk_value.strip() or disk_id
+            disks[disk_id] = {'name': disk_name, 'color': '#4ade80'}
+            continue
+
+        if isinstance(disk_value, dict):
+            disk_name = disk_value.get('name', disk_id)
+            color = disk_value.get('color', '#4ade80')
+
+            if not isinstance(disk_name, str) or not disk_name.strip():
+                return None, f"Disk '{disk_id}' has an invalid name"
+            if len(disk_name.strip()) > 64:
+                return None, f"Disk '{disk_id}' name cannot exceed 64 characters"
+            if not isinstance(color, str) or not HEX_COLOR_PATTERN.match(color):
+                return None, f"Disk '{disk_id}' color must be a hex value like #4ade80"
+
+            disks[disk_id] = {'name': disk_name.strip(), 'color': color.lower()}
+            continue
+
+        return None, f"Disk '{disk_id}' must be a string or object"
+
+    validated['disks'] = disks
+    return validated, None
 
 def get_config(attribute):
     """Get configuration attribute with default fallback"""
@@ -261,7 +354,7 @@ def save_config():
         json.dump(config, f, indent=4)
 
 @app.errorhandler(403)
-def forbiddon(e):
+def forbidden(e):
     return flask.render_template('403.html'), 403
 
 @app.errorhandler(404)
@@ -274,7 +367,7 @@ def index():
 
 @app.route('/<file>')
 def sendFile(file):
-    if os.path.exists(file):
+    if _is_safe_static_path(file):
         return flask.send_file(file)
     else:
         flask.abort(404)
@@ -293,9 +386,19 @@ def system():
 
 @app.route('/system/rename', methods=['POST'])
 def rename():
-    data = flask.request.get_json()
-    config['name'] = data.get('name', 'Unnamed Device')
+    data = flask.request.get_json(silent=True) or {}
+    name = data.get('name', 'Unnamed Device')
+
+    if not isinstance(name, str):
+        return flask.jsonify({"error": "name must be a string"}), 400
+
+    name = name.strip()
+    if not NAME_PATTERN.match(name):
+        return flask.jsonify({"error": "name must be 1-64 chars and use letters, numbers, spaces, ., _, or -"}), 400
+
+    config['name'] = name
     save_config()
+    return '', 204
 
 @app.route('/system/name', methods=['GET'])
 def get_name():
@@ -562,23 +665,17 @@ def upload_config():
     if file:
         try:
             data = json.load(file)
+            validated, validation_error = _validate_uploaded_config(data)
+            if validation_error:
+                return flask.jsonify({"error": validation_error}), 400
+
             with open('config.json', 'w') as f:
-                json.dump(data, f, indent=4)
+                json.dump(validated, f, indent=4)
             global config
-            config = data
+            config = validated
             return flask.jsonify({"success": True}), 200
         except Exception as e:
             return flask.jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
-        
-@app.route('/system/ram/flood', methods=['POST'])
-def ram_flood():
-    """
-    Endpoint to continuously allocate RAM until the server runs out of memory.
-    """
-    list = []
-    while True:
-        list.append(numpy.zeros((10**6, 10**2)))  # Allocate ~800MB at a time
-    return '', 204
 
 
 # --- Simple WebSocket server (runs alongside Flask) ---
